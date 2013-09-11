@@ -1,11 +1,13 @@
-\documentclass{article}
-\nonstopmode
-\usepackage{listings} % This is used for source code inclusion
+\documentclass{article} % I pretty much use this for everything -- it's pretty general purpose
+\nonstopmode            % It's pretty annoying when pdflatex starts up a command line when it encounters an error -- disable that functionality
+\usepackage{listings}   % This is used for source code inclusion
 
+% Basic title setup
 \title{Trajectory Optimization Framework}
 \author{Johnathan Van Why}
 
 \begin{document}
+	% This actually displays the title
 	\maketitle
 	\section{Introduction}
 		This framework is designed for the optimization of trajectories for robotic systems.
@@ -41,4 +43,16 @@
 				\item Call \lstinline|traj_run_opt()| to do the optimization.
 			\end{itemize}
 		\end{samepage}
+
+	\section{Structures}
+		This section contains information on all the values in the structures used to define and optimize the problem.
+		Since the optimizer is built around these structures, correctly setting them up is the majority of the work required to
+		interface with the framework.
+
+		Note: This documentation reflects the plans for the next revision of the framework's API.
+
+		\subsection{Scenario}
+			\begin{itemize}
+				\item To be written... % todo
+			\end{itemize}
 \end{document}
