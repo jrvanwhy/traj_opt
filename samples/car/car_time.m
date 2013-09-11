@@ -14,9 +14,9 @@
 % The only constraints are the force limits, starting state, and ending state.
 
 % Let's return the completed scenario structure, so the user may inspect the results
-% Also, the number of "nodes" for the dynamics representation (equivalent to timesteps for an ODE solver)
+% Also, the number of "intervals" for the dynamics representation (equivalent to timesteps for an ODE solver)
 % is a parameter of this function.
-function scenario = car_time(n_nodes)
+function scenario = car_time(n_intervals)
 	% Create the scenario structure itself. This doesn't require any parameters.
 	scenario = traj_create_scenario();
 
@@ -48,10 +48,10 @@ function scenario = car_time(n_nodes)
 	dynamics = traj_create_dynamics(@dynamics, state, input);
 
 	% Here, we create a dynamic phase. We must specify the dynamics
-	% in use and may specify the number of nodes for this phase.
+	% in use and may specify the number of intervals for this phase.
 	% Additionally, we may create a "cost" function via traj_create_cost()
 	% or constraints and add them to the resulting dynamic phase.
-	phase = traj_create_phase(dynamics, n_nodes);
+	phase = traj_create_phase(dynamics, n_intervals);
 
 	% Now we need to constrain the starting and ending states to be equal to the origin
 	% and one unit in the positive direction, respectively. To do this, we first need to be able
@@ -64,9 +64,14 @@ function scenario = car_time(n_nodes)
 	initial_state_constraint = traj_create_constraint(states(:,1), '=', [ 0
 	                                                                      0 ]);
 
-	% Similarly, create an inequality constraint for the ending state
+	% Name this constraint. traj_add_name() can take in essentially any optimizer structure and
+	% give it a name.
+	initial_state_constraint = traj_add_name(initial_state_constraint, 'Initial state');
+
+	% Similarly, create an inequality constraint for the ending state and name it
 	ending_state_constraint = traj_create_constraint(states(:,end), '.', [ 1
 	                                                                       0 ]);
+	initial_state_constraint = traj_add_name(initial_state_constraint, 'Initial state');
 
 	% Add the constraints to the phase
 	% traj_add_constraint() adds the constraint to the given phase or scenario
