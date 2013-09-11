@@ -69,9 +69,9 @@ function scenario = car_time(n_intervals)
 	initial_state_constraint = traj_add_name(initial_state_constraint, 'Initial state');
 
 	% Similarly, create an inequality constraint for the ending state and name it
-	ending_state_constraint = traj_create_constraint(states(:,end), '.', [ 1
+	ending_state_constraint = traj_create_constraint(states(:,end), '=', [ 1
 	                                                                       0 ]);
-	initial_state_constraint = traj_add_name(initial_state_constraint, 'Initial state');
+	ending_state_constraint = traj_add_name(ending_state_constraint, 'Ending state');
 
 	% Add the constraints to the phase
 	% traj_add_constraint() adds the constraint to the given phase or scenario
