@@ -1,5 +1,6 @@
 \documentclass{article}
 \nonstopmode
+\usepackage{listings} % This is used for source code inclusion
 
 \title{Trajectory Optimization Framework}
 \author{Johnathan Van Why}
@@ -29,4 +30,15 @@
 		The scenario structure contains all information necessary to run an optimization -- it is incrementally filled out by the optimizer
 		as it completes the various stages of problem setup and optimization. The final scenario structure contains the results of the optimization,
 		and should contain all information that may need to be saved for future use.
+
+		% Prevent this from being split across pages, or it will look nasty.
+		\begin{samepage}
+			The overall workflow for using the optimizer is as follows:
+			\begin{itemize}
+				\item Do basic problem specification in the scenario
+				% \lstinline|/* code */| puts in an inline code segment
+				\item Run the scenario through \lstinline|traj_setup()|, which automatically does most setup.
+				\item Call \lstinline|traj_run_opt()| to do the optimization.
+			\end{itemize}
+		\end{samepage}
 \end{document}
