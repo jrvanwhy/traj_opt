@@ -7,5 +7,16 @@
 \begin{document}
 	\maketitle
 	\section{Introduction}
-		
+		This framework is designed for the optimization of trajectories for robotic systems.
+		It can handle underactuated and hybrid systems. In the future, it will likely have support for multiple
+		"phases", or time periods in which specific dynamics are enforced.
+
+		The framework makes use of the MATLAB Symbolic Toolbox to aid in problem formulation and manipulation.
+		The actual optimization, however, is almost always numerical. By keeping the problem in a symbolic form, we
+		allow for the implementation of a mode where the optimization algorithm and problem are formulated together, leading
+		to a final solver optimized for the specific problem's structure.
+
+		This document gives a basic description of how to use the framework (in the future, there should be code samples
+		to demonstrate how to properly use this framework). It also covers the architectural design of the framework
+		and details on some of the most important algorithms contained within the framework.
 \end{document}
