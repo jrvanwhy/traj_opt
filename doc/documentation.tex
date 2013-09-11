@@ -1,4 +1,4 @@
-\documentclass[12pt]{article}
+\documentclass{article}
 \nonstopmode
 
 \title{Trajectory Optimization Framework}
@@ -19,4 +19,13 @@
 		This document gives a basic description of how to use the framework (in the future, there should be code samples
 		to demonstrate how to properly use this framework). It also covers the architectural design of the framework
 		and details on some of the most important algorithms contained within the framework.
+
+	\section{Usage}
+		At the moment, the interface to the optimizer is undergoing a re-design, so it is likely to change in the near future.
+		This section will hopefully be kept up to date with changes.
+
+		One thing that currently appears to be invariant is the usage of a central structure, called the "scenario" structure.
+		The scenario structure contains all information necessary to run an optimization -- it is incrementally filled out by the optimizer
+		as it completes the various stages of problem setup and optimization. The final scenario structure contains the results of the optimization,
+		and should contain all information that may need to be saved for future use.
 \end{document}
