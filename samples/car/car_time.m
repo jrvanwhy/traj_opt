@@ -81,6 +81,18 @@ function scenario = car_time(n_intervals)
 	% Add the phase to the scenario
 	scenario = traj_add_phase(scenario, phase);
 
+	% Retrieve the duration of the scenario. In this case, traj_get_duration()
+	% returns the sum of the durations of the phases. traj_get_duration() may also be used
+	% on an individual phase to retrieve just its duration.
+	duration = traj_get_duration(scenario);
+
+	% Add on the cost. In our case, we're trying to minimize the duration of the trajectory,
+	% so the cost is proportional to the duration.
+	% traj_create_cost() takes in the (symbolic) cost function. It also allows a name to be specified
+	% for the cost.
+	cost = traj_create_cost(duration, 'Time');
+	scenario = traj_add_cost(scenario, cost);
+
 	% Run the optimization
 	% This returns the scenario and a success flag (also stored in the scenario)
 	% that is true if it was successful and false otherwise.
