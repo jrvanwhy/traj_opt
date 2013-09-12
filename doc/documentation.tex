@@ -11,7 +11,7 @@
 	\maketitle
 	\section{Introduction}
 		This framework is designed for the optimization of trajectories for robotic systems.
-		It can handle underactuated and hybrid systems. In the future, it will likely have support for multiple
+		It can handle underactuated and hybrid systems. In the future, it will have support for multiple
 		"phases", or time periods in which specific dynamics are enforced.
 
 		The framework makes use of the MATLAB Symbolic Toolbox to aid in problem formulation and manipulation.
@@ -19,10 +19,10 @@
 		allow for the implementation of a mode where the optimization algorithm and problem are formulated together, leading
 		to a final solver optimized for the specific problem's structure.
 
-		This document gives a basic description of how to use the framework, which
-		will eventually be supplemented by code samples (there will soon be a sample program
-		for the reworked interface in the repository). It also covers the architectural design of the framework
-		and details on some of the most important algorithms contained within the framework.
+		This document gives a basic description of how to use the framework. It also covers the architectural design of the framework
+		and details on some of the most important algorithms contained within the framework. In addition to this document, code samples
+		% \lstinline|/* code */| puts in an inline code segment
+		are located within the \lstinline|samples/| directory and function as additional documentation for the optimizer.
 
 	\section{Usage}
 		At the moment, the interface to the optimizer is undergoing a re-design, so it is likely to change in the near future.
@@ -36,12 +36,10 @@
 		% Prevent this from being split across pages, or it will look nasty.
 		\begin{samepage}
 			The overall workflow for using the optimizer is as follows:
-			\begin{itemize}
-				\item Do basic problem specification in the scenario
-				% \lstinline|/* code */| puts in an inline code segment
-				\item Run the scenario through \lstinline|traj_setup()|, which automatically does most setup.
-				\item Call \lstinline|traj_run_opt()| to do the optimization.
-			\end{itemize}
+			\begin{enumerate}
+				\item Incrementally set up the problem by calling optimizer functions to generate structures.
+				\item Call \lstinline|traj_optimize()| on the scenario structure to do the optimization.
+			\end{enumerate}
 		\end{samepage}
 
 	\section{Structures}
@@ -50,6 +48,31 @@
 		interface with the framework.
 
 		Note: This documentation reflects the plans for the next revision of the framework's API.
+
+		Each structure contains a \lstinline|struct_type| string, which states the "type" of the structure.
+		This allows for error checking and for mixing and matching optimizer functions with structure types.
+
+		Additionally, each structure contains a \lstinline|version| integer. This version is incremented every time a breaking
+		change is made to one of the structures. All versions are kept in-sync, since the structures contain each other.
+		Each time the version number is incremented, functions for updating all relevant structures should be created for backwards
+		compatibility. The optimizer will automatically update any outdated structures passed in to it. In this way, a scenario structure
+		that is saved at one point in time will remain usable, even if the optimizer is updated.
+
+		The ordering of these structures in this section of the documentation reflects the nesting of the structures inside the scenario structure.
+
+		\subsection{State}
+			This structure represents a dynamic state. It is used in initializing the system dynamics.
+
+			% Put in a blank line so it looks nices
+			\vspace{\baselineskip}
+
+			\begin{tabular}{ p{.15\textwidth} | p{.1\textwidth} | p{.6\textwidth}}
+				Field                   & Type    & Description                                                                       \\ \hline
+				\lstinline|names|       & \raggedright Cell array of strings & A column vector containing the name of each element of
+				                                                  the state. Its size matches the size of the overall state.          \\[1ex]
+				\lstinline|struct_type| & String  & The time of the struct -- always 'state'                                          \\
+				\lstinline|version|     & Integer & The version number of this structure.                                             \\
+			\end{tabular}
 
 		\subsection{Scenario}
 			\begin{itemize}
