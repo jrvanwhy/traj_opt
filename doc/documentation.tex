@@ -68,10 +68,26 @@
 
 			\begin{tabular}{ p{.15\textwidth} | p{.1\textwidth} | p{.6\textwidth}}
 				Field                   & Type    & Description                                                                       \\ \hline
-				\lstinline|names|       & \raggedright Cell array of strings & A column vector containing the name of each element of
+				\lstinline|names|       & \raggedright Cell array of strings & A column array containing the name of each element of
 				                                                  the state. Its size matches the size of the overall state.          \\[1ex]
-				\lstinline|struct_type| & String  & The time of the struct -- always 'state'                                          \\
+				\lstinline|struct_type| & String  & The type of the struct -- always 'state'                                          \\
 				\lstinline|version|     & Integer & The version number of this structure.                                             \\
+			\end{tabular}
+
+		\subsection{Input}
+			This structure represents an input to the system. It is used for initializing dynamics and jump maps (when and if
+			jump maps are implemented).
+
+			% Blank line for looks
+			\vspace{\baselineskip}
+
+			\begin{tabular}{ p{.15\textwidth} | p{.1\textwidth} | p{.6\textwidth}}
+				Field                   & Type                               & Description                                            \\ \hline
+				\lstinline|names|       & \raggedright Cell array of strings & A column array containing the name of each element of
+				                                                               this input. It has the same number of elements an the
+				                                                               input it represents.                                   \\[1ex]
+				\lstinline|struct_type| & String                             & This struct's type. Always 'input'                     \\
+				\lstinline|version|     & Integer                            & The version number of this structure.                  \\
 			\end{tabular}
 
 		\subsection{Scenario}
