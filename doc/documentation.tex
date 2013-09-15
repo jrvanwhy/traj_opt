@@ -31,7 +31,8 @@
 
 		One thing that currently appears to be invariant is the usage of a central structure, called the "scenario" structure.
 		The scenario structure contains all information necessary to run an optimization -- it is incrementally filled out by the optimizer
-		as it completes the various stages of problem setup and optimization. The final scenario structure contains the results of the optimization,
+		as it completes the various stages of problem setup and optimization. The final
+		scenario structure contains the results of the optimization,
 		and should contain all information that may need to be saved for future use.
 
 		% Prevent this from being split across pages, or it will look nasty.
@@ -59,7 +60,8 @@
 		compatibility. The optimizer will automatically update any outdated structures passed in to it. In this way, a scenario structure
 		that is saved at one point in time will remain usable, even if the optimizer is updated.
 
-		The ordering of these structures in this section of the documentation reflects the nesting of the structures inside the scenario structure.
+		The ordering of these structures in this section of the documentation reflects
+		the nesting of the structures inside the scenario structure.
 
 		\subsection{State}
 			\label{sec:state} % Allow documentation for other structures to reference this structure
@@ -70,29 +72,29 @@
 			\vspace{\baselineskip}
 
 			\begin{tabular}{ p{.15\textwidth} | p{.1\textwidth} | p{.6\textwidth}}
-				Field                    & Type    & Description                                                                       \\ \hline
+				Field                    & Type    & Description                                                                 \\ \hline
 				\lstinline|names|        & \raggedright Cell array of strings & A column array containing the name of each element of
-				                                                   the state. Its size matches the size of the overall state.          \\[1ex]
-				\lstinline|struct_type|  & String  & The type of the struct -- always 'state'                                          \\
-				\lstinline|version|      & Integer & The version number of this structure.                                             \\
+				                                                   the state. Its size matches the size of the overall state.    \\[1ex]
+				\lstinline|struct_type|  & String  & The type of the struct -- always 'state'                                    \\[1ex]
+				\lstinline|version|      & \raggedright Positive Integer & The version number of this structure.
 			\end{tabular}
 
 		\subsection{Input}
 			\label{sec:input} % Allow documentation for other structures to reference this structure
 
 			This structure represents an input to the system. It is used for initializing dynamics and jump maps (when and if
-			jump maps are implemented).
+			jump maps are implemented).\nopagebreak
 
 			% Blank line for looks
-			\vspace{\baselineskip}
+			\vspace{\baselineskip}\nopagebreak
 
 			\begin{tabular}{ p{.15\textwidth} | p{.1\textwidth} | p{.6\textwidth}}
-				Field                    & Type                               & Description                                            \\ \hline
+				Field                    & Type                               & Description                                      \\ \hline
 				\lstinline|names|        & \raggedright Cell array of strings & A column array containing the name of each element of
-				                                                                this input. It has the same number of elements an the
-				                                                                input it represents.                                   \\[1ex]
-				\lstinline|struct_type|  & String                             & This struct's type. Always 'input'                     \\
-				\lstinline|version|      & Integer                            & The version number of this structure.                  \\
+												this input. It has the same number of elements an the
+												input it represents.                             \\[1ex]
+				\lstinline|struct_type|  & String                             & This struct's type. Always 'input'               \\[1ex]
+				\lstinline|version|      & \raggedright Positive Integer      & The version number of this structure.
 			\end{tabular}
 
 		\subsection{Dynamics}
@@ -104,15 +106,34 @@
 			\vspace{\baselineskip}
 
 			\begin{tabular}{ p{.17\textwidth} | p{.15\textwidth} | p{.53\textwidth}}
-				Field                    & Type                               & Description                                            \\ \hline
+				Field                    & Type                               & Description                                      \\ \hline
 				\lstinline|dynamics_fcn| & \raggedright Anonymous function    & The function dx = f(x, u) describing the system's
-				                                                                dynamics.                                              \\
+				                                                                dynamics.                                        \\[1ex]
 				\lstinline|input|        & \hyperref[sec:input]{Input}        & The \hyperref[sec:input]{input} struct corresponding
-				                                                                to this set of dynamics                                \\
+				                                                                to this set of dynamics                          \\[1ex]
 				\lstinline|state|        & \hyperref[sec:state]{State}        & The \hyperref[sec:state]{state} struct representing
-				                                                                this dynamics's state input (and output).              \\
-				\lstinline|struct_type|  & String                             & This struct's type. Always 'input'                     \\
-				\lstinline|version|      & Integer                            & The version number of this structure.                  \\
+				                                                                this dynamics's state input (and output).        \\[1ex]
+				\lstinline|struct_type|  & String                             & This struct's type. Always 'dynamics'            \\[1ex]
+				\lstinline|version|      & \raggedright Positive Integer      & The version number of this structure.
+			\end{tabular}
+
+		\subsection{Phase}
+			\label{sec:phase} % This structure is referenced from the Scenario structure's documentation (and possibly other places as well).
+
+			This structure encodes information on one dynamic phase.
+
+			% Blank line for formatting
+			\vspace{\baselineskip}
+
+			\begin{tabular}{ p{.15\textwidth} | p{.13\textwidth} | p{197pt}}
+				Field                    & Type                               & Description                                      \\ \hline
+				\lstinline|dynamics|     & \hyperref[sec:dynamics]{Dynamics}  & The dynamics for this phase.                     \\[1ex]
+				\lstinline|intervals|    & \raggedright Positive Integer      & The number of time intervals in the
+				                                                                discrete
+				                                                                approximation to the underlying continuous-time
+				                                                                problem.                                         \\[1ex]
+				\lstinline|struct_type|  & String                             & This struct's type. Always 'phase'               \\[1ex]
+				\lstinline|version|      & \raggedright Positive Integer      & The version number of this structure.
 			\end{tabular}
 
 		\subsection{Scenario}
