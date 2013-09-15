@@ -125,7 +125,7 @@
 			\begin{tabular}{ p{.15\textwidth} | p{.1\textwidth} | p{.6\textwidth}}
 				Field                    & Type                               & Description                                      \\ \hline
 				\lstinline|names|        & \raggedright Cell array of strings & A column array containing the name of each element of
-												this input. It has the same number of elements an the
+												this input. It has the same number of elements as the
 												input it represents.                             \\[1ex]
 				\lstinline|struct_type|  & String                             & This struct's type. Always 'input'               \\[1ex]
 				\lstinline|version|      & \raggedright Positive Integer      & The version number of this structure.
@@ -188,6 +188,10 @@
 
 	\section{Functions}
 		This section documents the various functions within the optimizer.
+
+		\subsection{traj\_create\_input(...)}
+			This creates a new \hyperref[sec:input]{input} structure. Each parameter represents a single variable in this input
+			and should be a string naming that variable (such as 'actuator rate' or 'force').
 
 		\subsection{traj\_create\_scenario(...)}
 			This creates the \hyperref[sec:scenario]{scenario} structure. If you pass it \hyperref[sec:phase]{phases},
