@@ -10,6 +10,7 @@
 \begin{document}
 	% This actually displays the title
 	\maketitle
+
 	\section{Introduction}
 		This framework is designed for the optimization of trajectories for robotic systems.
 		It can handle underactuated and hybrid systems. In the future, it will have support for multiple
@@ -137,6 +138,8 @@
 			\end{tabular}
 
 		\subsection{Scenario}
+			\label{sec:scenario} % This gets referred to in many places.
+
 			This is the main structure, encoding all information necessary to perform the optimization.
 
 			% Blank line for formatting purposes
@@ -149,4 +152,12 @@
 				\lstinline|struct_type|  & String                             & This struct's type. Always 'scenario'            \\[1ex]
 				\lstinline|version|      & \raggedright Positive Integer      & The version of this structure.
 			\end{tabular}
+
+	\section{Functions}
+		This section documents the various functions within the optimizer.
+
+		\subsection{traj\_create\_scenario(...)}
+			This creates the \hyperref[sec:scenario]{scenario} structure. If you pass it \hyperref[sec:phase]{phases},
+			it'll go ahead and initialize the \hyperref[sec:scenario]{scenario}
+			with the \hyperref[sec:phase]{phases}.
 \end{document}
