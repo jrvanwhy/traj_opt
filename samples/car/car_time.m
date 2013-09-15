@@ -32,7 +32,7 @@ function scenario = car_time(n_intervals)
 
 	% This is our dynamics function. It takes in the state and input and returns the derivative
 	% of the state. It gets called by the optimization framework (during the call to traj_create_dynamics())
-	function dx = dynamics(x, u)
+	function dx = car_dynamics(x, u)
 		% We'll use a linear representation of the system here
 		A = [ 0 1
 		      0 0 ];
@@ -45,7 +45,7 @@ function scenario = car_time(n_intervals)
 	end
 
 	% Create the dynamics structure
-	dynamics = traj_create_dynamics(@dynamics, state, input);
+	dynamics = traj_create_dynamics(@car_dynamics, state, input);
 
 	% Here, we create a dynamic phase. We must specify the dynamics
 	% in use and may specify the number of intervals for this phase.

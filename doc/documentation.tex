@@ -64,6 +64,23 @@
 		The ordering of these structures in this section of the documentation reflects
 		the nesting of the structures inside the scenario structure.
 
+		\subsection{Constraint}
+			\label{sec:constraint} % This structure is referenced from various places
+
+			This structure represents a constraint (inequality or equality).
+
+			% Putting a blank line here makes the table look nicer
+			\vspace{\baselineskip}
+
+			\begin{tabular}{ p{.15\textwidth} | p{.26\textwidth} | p{152pt}}
+				Field                    & Type    & Description                                                                 \\ \hline
+				\lstinline|lside| & \raggedright Symbolic expression & The left side of the constraint.                          \\[1ex]
+				\lstinline|rside| & \raggedright Symbolic expression & The right side of the constraint.                         \\[1ex]
+				\lstinline|struct_type|  & String  & The type of the struct -- always 'constraint'                               \\[1ex]
+				\lstinline|type| & String & The type of the constraint -- always '$<=$', '$==$', or '$>=$'.                            \\[1ex]
+				\lstinline|version| & \raggedright Positive Integer & The version number of this structure.
+			\end{tabular}
+
 		\subsection{State}
 			\label{sec:state} % Allow documentation for other structures to reference this structure
 
@@ -157,7 +174,10 @@
 		This section documents the various functions within the optimizer.
 
 		\subsection{traj\_create\_scenario(...)}
-			This creates the \hyperref[sec:scenario]{scenario} structure. If you pass it \hyperref[sec:phase]{phases},
-			it'll go ahead and initialize the \hyperref[sec:scenario]{scenario}
-			with the \hyperref[sec:phase]{phases}.
+			This creates the \hyperref[sec:scenario]{scenario} structure. If you pass it \hyperref[sec:phase]{phases} or
+			\hyperref[sec:constraint]{constraints}, it'll go ahead and initialize the \hyperref[sec:scenario]{scenario}
+			with the given structures.
+
+		\subsection{traj\_version()}
+			This returns the current version of the optimizer.
 \end{document}
