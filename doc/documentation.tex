@@ -137,7 +137,16 @@
 			\end{tabular}
 
 		\subsection{Scenario}
-			\begin{itemize}
-				\item To be written... % todo
-			\end{itemize}
+			This is the main structure, encoding all information necessary to perform the optimization.
+
+			% Blank line for formatting purposes
+			\vspace{\baselineskip}
+
+			\begin{tabular}{ p{.15\textwidth} | p{.13\textwidth} | p{197pt}}
+				Field                    & Type                               & Description                                      \\ \hline
+				\lstinline|phases| & \raggedright \hyperref[sec:phase]{Phase Array} & All the phases for this optimization scenario.
+				                                                                Ordered.                                         \\[1ex]
+				\lstinline|struct_type|  & String                             & This struct's type. Always 'scenario'            \\[1ex]
+				\lstinline|version|      & \raggedright Positive Integer      & The version of this structure.
+			\end{tabular}
 \end{document}
