@@ -3,9 +3,6 @@
 # This script builds the documentation for the project. It also updates README in the folder itself (the
 # root folder of this repository).
 
-# Abort upon encountering an error
-#set -e
-
 # Make sure we're in the right directory
 cd `dirname $0`
 
