@@ -73,21 +73,37 @@
 			\vspace{\baselineskip}
 
 			\begin{tabular}{ p{.15\textwidth} | p{.26\textwidth} | p{152pt}}
-				Field                    & Type    & Description                                                                 \\ \hline
-				\lstinline|lside| & \raggedright Symbolic expression & The left side of the constraint.                          \\[1ex]
-				\lstinline|rside| & \raggedright Symbolic expression & The right side of the constraint.                         \\[1ex]
-				\lstinline|struct_type|  & String  & The type of the struct -- always 'constraint'                               \\[1ex]
-				\lstinline|type| & String & The type of the constraint -- always '$<=$', '$==$', or '$>=$'.                            \\[1ex]
-				\lstinline|version| & \raggedright Positive Integer & The version number of this structure.
+				Field                    & Type                             & Description                                    \\ \hline
+				\lstinline|lside|        & \raggedright Symbolic expression & The left side of the constraint.               \\[1ex]
+				\lstinline|rside|        & \raggedright Symbolic expression & The right side of the constraint.              \\[1ex]
+				\lstinline|struct_type|  & String                           & The type of the struct -- always 'constraint'  \\[1ex]
+				\lstinline|type|         & String                           & The type of the constraint -- always
+				                                                              '$<=$', '$==$', or '$>=$'.                     \\[1ex]
+				\lstinline|version|      & \raggedright Positive Integer    & The version number of this structure.
+			\end{tabular}
+
+		\subsection{Cost}
+			\label{sec:cost}
+
+			This structure represents a cost.\nopagebreak
+
+			% Blank line for formatting
+			\vspace{\baselineskip}\nopagebreak
+
+			\begin{tabular}{ p{.15\textwidth} | p{.26\textwidth} | p{152pt}}
+				Field                    & Type                             & Description                                    \\ \hline
+				\lstinline|cost|         & \raggedright Symbolic expression & The value of this cost                         \\[1ex]
+				\lstinline|struct_type|  & String                           & The type of the struct -- always 'constraint'  \\[1ex]
+				\lstinline|version|      & \raggedright Positive Integer    & The version number of this structure.
 			\end{tabular}
 
 		\subsection{State}
 			\label{sec:state} % Allow documentation for other structures to reference this structure
 
-			This structure represents a dynamic state. It is used in initializing the system dynamics.
+			This structure represents a dynamic state. It is used in initializing the system dynamics.\nopagebreak
 
 			% Put in a blank line so it looks nice
-			\vspace{\baselineskip}
+			\vspace{\baselineskip}\nopagebreak
 
 			\begin{tabular}{ p{.15\textwidth} | p{.1\textwidth} | p{.6\textwidth}}
 				Field                    & Type    & Description                                                                 \\ \hline
@@ -174,9 +190,13 @@
 		This section documents the various functions within the optimizer.
 
 		\subsection{traj\_create\_scenario(...)}
-			This creates the \hyperref[sec:scenario]{scenario} structure. If you pass it \hyperref[sec:phase]{phases} or
-			\hyperref[sec:constraint]{constraints}, it'll go ahead and initialize the \hyperref[sec:scenario]{scenario}
-			with the given structures.
+			This creates the \hyperref[sec:scenario]{scenario} structure. If you pass it \hyperref[sec:phase]{phases},
+			\hyperref[sec:cost]{costs}, or \hyperref[sec:constraint]{constraints}, it'll go ahead and
+			initialize the \hyperref[sec:scenario]{scenario} with the given structures.
+
+		\subsection{traj\_create\_state(...)}
+			This creates the \hyperref[sec:state]{state} structure. Each parameter represents a single variable in the state
+			and should be a string naming that variable (such as 'position' or 'velocity').
 
 		\subsection{traj\_version()}
 			This returns the current version of the optimizer.

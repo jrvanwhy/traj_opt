@@ -17,6 +17,6 @@ function scenario = traj_create_scenario(varargin)
 	% Since this hasn't been written yet, we'll choose to check for arguments, and if any were passed,
 	% spit out an error and die.
 	if size(varargin, 2) > 0
-		error('traj_create_scenario(): Adding constraints/phases to the scenario during creation not yet possible!');
+		error('Adding constraints/phases to the scenario during creation not yet implemented (bug me!)');
 	end
 end

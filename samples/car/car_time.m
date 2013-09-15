@@ -17,15 +17,11 @@
 % Also, the number of "intervals" for the dynamics representation (equivalent to timesteps for an ODE solver)
 % is a parameter of this function.
 function scenario = car_time(n_intervals)
-	% Create the scenario structure itself. This doesn't require any parameters.
-	scenario = traj_create_scenario();
-
 	% This creates a state structure. We specify names for each element in the state.
 	% The state will be a column vector, even if the names array isn't. The
 	% number of elements in the names array determines the size of the state.
-	% We're using a cell array here because these are strings
-	% If a string is passed in, it the state should be of size 1
-	state = traj_create_state({ 'position', 'velocity' });
+	% If a string is passed in, the state will be of size 1
+	state = traj_create_state('position', 'velocity');
 
 	% This is a similar to traj_create_state(), but for input instead.
 	input = traj_create_input('force');
@@ -78,8 +74,8 @@ function scenario = car_time(n_intervals)
 	phase = traj_add_constraint(phase, initial_state_constraint);
 	phase = traj_add_constraint(phase, ending_state_constraint);
 
-	% Add the phase to the scenario
-	scenario = traj_add_phase(scenario, phase);
+	% Create the scenario structure itself. Go ahead and add the phase to the scenario during initialization.
+	scenario = traj_create_scenario(phase);
 
 	% Retrieve the duration of the scenario. In this case, traj_get_duration()
 	% returns the sum of the durations of the phases. traj_get_duration() may also be used
