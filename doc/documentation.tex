@@ -134,10 +134,10 @@
 		\subsection{Dynamics}
 			\label{sec:dynamics} % Allow documentation for other structures to reference this structure
 
-			This structure contains the dynamic equations for the system (or one set of dynamics for hybrid dynamics systems).
+			This structure contains the dynamic equations for the system (or one set of dynamics for hybrid dynamics systems).\nopagebreak
 
 			% Blank line for looks
-			\vspace{\baselineskip}
+			\vspace{\baselineskip}\nopagebreak
 
 			\begin{tabular}{ p{.17\textwidth} | p{.15\textwidth} | p{.53\textwidth}}
 				Field                    & Type                               & Description                                      \\ \hline
@@ -189,7 +189,16 @@
 	\section{Functions}
 		This section documents the various functions within the optimizer.
 
+		\subsection{traj\_create\_dynamics(dynamicsfcn, state, input)}
+			\lstinline|traj_create_dynamics()| creates a new \hyperref[sec:dynamics]{dynamics} structure. The dynamics function
+			represents the system dynamics and is of the form $\dot{x} = f(x, u)$ where $x$ is the state and $u$ is the input.
+			In MATLAB code, this means it is of the form \lstinline|dx = dynamicsfcn(state, input)|. The \hyperref[sec:state]{state}
+			and \hyperref[sec:input]{input} are parameters structures created by
+			\hyperref[subsec:traj_create_state]{\lstinline|traj_create_state()|} and
+			\hyperref[subsec:traj_create_input]{\lstinline|traj_create_input()|}, respectively.
+
 		\subsection{traj\_create\_input(...)}
+			\label{subsec:traj_create_input}
 			This creates a new \hyperref[sec:input]{input} structure. Each parameter represents a single variable in this input
 			and should be a string naming that variable (such as 'actuator rate' or 'force').
 
@@ -199,6 +208,7 @@
 			initialize the \hyperref[sec:scenario]{scenario} with the given structures.
 
 		\subsection{traj\_create\_state(...)}
+			\label{subsec:traj_create_state}
 			This creates the \hyperref[sec:state]{state} structure. Each parameter represents a single variable in the state
 			and should be a string naming that variable (such as 'position' or 'velocity').
 
