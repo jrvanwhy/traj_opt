@@ -67,19 +67,30 @@
 		\subsection{Constraint}
 			\label{sec:constraint} % This structure is referenced from various places
 
-			This structure represents a constraint (inequality or equality).
+			This structure represents one or more constraints (inequality and/or equality).
 
 			% Putting a blank line here makes the table look nicer
 			\vspace{\baselineskip}
 
-			\begin{tabular}{ p{.15\textwidth} | p{.26\textwidth} | p{152pt}}
-				Field                    & Type                             & Description                                    \\ \hline
-				\lstinline|lside|        & \raggedright Symbolic expression & The left side of the constraint.               \\[1ex]
-				\lstinline|rside|        & \raggedright Symbolic expression & The right side of the constraint.              \\[1ex]
-				\lstinline|struct_type|  & String                           & The type of the struct -- always 'constraint'  \\[1ex]
-				\lstinline|type|         & String                           & The type of the constraint -- always
-				                                                              '$<=$', '$==$', or '$>=$'.                     \\[1ex]
-				\lstinline|version|      & \raggedright Positive Integer    & The version number of this structure.
+			\begin{tabular}{ p{.15\textwidth} | p{.15\textwidth} | p{190pt}}
+				Field                   & Type                          & Description                                    \\ \hline
+				\lstinline|c|           & \raggedright Symbolic expression or function handle
+				                                                        & {\raggedright The inequality constraints
+				                                                          function. This gets
+				                                                          constrained such that $c <= 0$ at the solution
+				                                                          point. If this is created by the user, it will
+				                                                          contain a symbolic variable. Once it is
+				                                                          processed by the optimization framework, it
+				                                                          will be turned into a function handle. The
+				                                                          set of variables of which it is a function
+				                                                          will change based on the context it's in.}     \\[1ex]
+				\lstinline|ceq|         & \raggedright Symbolic expression or function handle
+				                                                        & This is the same as for \lstinline|c|, but for
+				                                                          equality constraints (i.e. \lstinline|ceq| is
+				                                                          constrained such that $ceq = 0$ at the solution
+				                                                          point).                                        \\[4ex]
+				\lstinline|struct_type| & String                        & The type of the struct -- always 'constraint'  \\[1ex]
+				\lstinline|version|     & \raggedright Positive Integer & The version number of this structure.
 			\end{tabular}
 
 		\subsection{Cost}
@@ -92,63 +103,10 @@
 
 			\begin{tabular}{ p{.15\textwidth} | p{.26\textwidth} | p{152pt}}
 				Field                    & Type                             & Description                                    \\ \hline
-				\lstinline|cost|         & \raggedright Symbolic expression & The value of this cost                         \\[1ex]
+				\lstinline|cost|         & \raggedright Symbolic expression or function handle
+				                                                            & The value of this cost                         \\[4ex]
 				\lstinline|struct_type|  & String                           & The type of the struct -- always 'constraint'  \\[1ex]
 				\lstinline|version|      & \raggedright Positive Integer    & The version number of this structure.
-			\end{tabular}
-
-		\subsection{State}
-			\label{sec:state} % Allow documentation for other structures to reference this structure
-
-			This structure represents a dynamic state. It is used in initializing the system dynamics.\nopagebreak
-
-			% Put in a blank line so it looks nice
-			\vspace{\baselineskip}\nopagebreak
-
-			\begin{tabular}{ p{.15\textwidth} | p{.1\textwidth} | p{.6\textwidth}}
-				Field                    & Type    & Description                                                                 \\ \hline
-				\lstinline|names|        & \raggedright Cell array of strings & A column array containing the name of each element of
-				                                                   the state. Its size matches the size of the overall state.    \\[1ex]
-				\lstinline|struct_type|  & String  & The type of the struct -- always 'state'                                    \\[1ex]
-				\lstinline|version|      & \raggedright Positive Integer & The version number of this structure.
-			\end{tabular}
-
-		\subsection{Input}
-			\label{sec:input} % Allow documentation for other structures to reference this structure
-
-			This structure represents an input to the system. It is used for initializing dynamics and jump maps (when and if
-			jump maps are implemented).\nopagebreak
-
-			% Blank line for looks
-			\vspace{\baselineskip}\nopagebreak
-
-			\begin{tabular}{ p{.15\textwidth} | p{.1\textwidth} | p{.6\textwidth}}
-				Field                    & Type                               & Description                                      \\ \hline
-				\lstinline|names|        & \raggedright Cell array of strings & A column array containing the name of each element of
-												this input. It has the same number of elements as the
-												input it represents.                             \\[1ex]
-				\lstinline|struct_type|  & String                             & This struct's type. Always 'input'               \\[1ex]
-				\lstinline|version|      & \raggedright Positive Integer      & The version number of this structure.
-			\end{tabular}
-
-		\subsection{Dynamics}
-			\label{sec:dynamics} % Allow documentation for other structures to reference this structure
-
-			This structure contains the dynamic equations for the system (or one set of dynamics for hybrid dynamics systems).\nopagebreak
-
-			% Blank line for looks
-			\vspace{\baselineskip}\nopagebreak
-
-			\begin{tabular}{ p{.17\textwidth} | p{.15\textwidth} | p{.53\textwidth}}
-				Field                    & Type                               & Description                                      \\ \hline
-				\lstinline|dynamics_fcn| & \raggedright Anonymous function    & The function dx = f(x, u) describing the system's
-				                                                                dynamics.                                        \\[1ex]
-				\lstinline|input|        & \hyperref[sec:input]{Input}        & The \hyperref[sec:input]{input} struct corresponding
-				                                                                to this set of dynamics                          \\[1ex]
-				\lstinline|state|        & \hyperref[sec:state]{State}        & The \hyperref[sec:state]{state} struct representing
-				                                                                this dynamics's state input (and output).        \\[1ex]
-				\lstinline|struct_type|  & String                             & This struct's type. Always 'dynamics'            \\[1ex]
-				\lstinline|version|      & \raggedright Positive Integer      & The version number of this structure.
 			\end{tabular}
 
 		\subsection{Phase}
@@ -159,13 +117,29 @@
 			% Blank line for formatting
 			\vspace{\baselineskip}
 
-			\begin{tabular}{ p{.15\textwidth} | p{.13\textwidth} | p{197pt}}
+			\begin{tabular}{ p{61pt} | p{.13\textwidth} | p{188pt}}
 				Field                    & Type                               & Description                                      \\ \hline
-				\lstinline|dynamics|     & \hyperref[sec:dynamics]{Dynamics}  & The dynamics for this phase.                     \\[1ex]
+				\lstinline|add_params|   & Cell array of strings              & A list of all additional optimization parametrs
+				                                                                for this phase. These are optimization parameters
+				                                                                used by the user functions -- they are not
+				                                                                parameters generated by the optimizer.           \\[1ex]
+				\lstinline|constraints| & \hyperref[sec:constraint]{Constraint} & The constraints that apply to this phase.
+				\lstinline|dcost|        & Function handle                    & The derivative of cost for this phase. This is a
+				                                                                function of the form $\dot{C} = c(x, u)$.        \\[1ex]
+				\lstinline|dx|           & Function handle                    & The dynamics for this phase. This is a function
+				                                                                of the form $\dot{x} = f(x, u)$.                 \\[1ex]
+				\lstinline|input|        & Cell array of strings              & A column vector containing the names of each
+				                                                                input for this phase.                            \\[1ex]
 				\lstinline|intervals|    & \raggedright Positive Integer      & The number of time intervals in the
 				                                                                discrete
 				                                                                approximation to the underlying continuous-time
 				                                                                problem.                                         \\[1ex]
+				\lstinline|name|         & String                             & The name of this phase.                          \\[1ex]
+				\lstinline|noopt_params| & Cell array of strings              & A list of all parameters that will not be
+				                                                                optimized for. These parameters may be quickly
+				                                                                changed in between optimization runs.            \\[1ex]
+				\lstinline|state|        & Cell array of strings              & This is a column vector cell array containing the
+				                                                                names of each of the states for this phase.      \\[1ex]
 				\lstinline|struct_type|  & String                             & This struct's type. Always 'phase'               \\[1ex]
 				\lstinline|version|      & \raggedright Positive Integer      & The version number of this structure.
 			\end{tabular}
