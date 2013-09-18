@@ -3,5 +3,3 @@ robotics-related usage. It supports optimization of dynamic systems, including
 optimization through phase sequences for hybrid dynamic systems. Additionally,
 it contains tools for the optimization of phase sequences for hybrid dynamic
 systems.
-
-The main documentation may be found in the "doc" directory.
