@@ -4,90 +4,64 @@
 %
 % The problem setup is as such: There is a car. At time 0, it is stationary at the origin.
 % A time-varying force may be applied to this car. After some amount of time, the cart must be stationary
-% at position 1. This time should be minimized without exceeding the maximum and minimum force limitations.
+% at position 1. This time should be minimized without exceeding the minimum and maximum force limitations.
 %
 % The input here (u) consists only of the force applied on the car. The state is a member of R²,
 % and is of the following form:
 % x = [ position ]
 %     [ velocity ]
 %
-% The only constraints are the force limits, starting state, and ending state.
+% The only scenario-imposed constraints are the force limits, starting state, and ending state.
 
 % Let's return the completed scenario structure, so the user may inspect the results
 % Also, the number of "intervals" for the dynamics representation (equivalent to timesteps for an ODE solver)
 % is a parameter of this function.
 function scenario = car_time(n_intervals)
-	% This creates a state structure. We specify names for each element in the state.
-	% The state will be a column vector, even if the names array isn't. The
-	% number of elements in the names array determines the size of the state.
-	% If a string is passed in, the state will be of size 1
-	state = traj_create_state('position', 'velocity');
+	% This is the dynamic system function. It does most of the work of specifying the dynamic behavior
+	% of the car and constraints on its dynamic motion.
+	% Since add_params and noopt_params is not necessary for this dynamic system, we do not need to make
+	% them parameters.
+	function [dx,min_force_con,max_force_con] = dynamic_system(x, u)
+		% The derivative of position is velocity; the derivative of velocity is the input, since
+		% the mass is a nondimensional 1.
+		dx = [ x(2)
+		       u ];
 
-	% This is a similar to traj_create_state(), but for input instead.
-	input = traj_create_input('force');
-
-	% This is our dynamics function. It takes in the state and input and returns the derivative
-	% of the state. It gets called by the optimization framework (during the call to traj_create_dynamics())
-	function dx = car_dynamics(x, u)
-		% We'll use a linear representation of the system here
-		A = [ 0 1
-		      0 0 ];
-
-		B = [ 0
-		      1 ];
-
-		% Specify the derivative of the state
-		dx = A * x + B * u;
+		% Make sure the absolute value of the force does not exceed 1
+		min_force_con = traj_create_constraint('Min Force', u, '>=', -1);
+		max_force_con = traj_create_constraint('Max Force', u, '<=',  1);
 	end
 
-	% Create the dynamics structure
-	dynamics = traj_create_dynamics(@car_dynamics, state, input);
+	% Here, we create a dynamic phase representing the car's trip. The first parameter is the name of the phase (optional), the second
+	% should be the "dynamic system" function, which is of the form [dx,varargs] = dynsys(x, u, add_params, noopt_params)
+	% and defines costs and constraints throughout this dynamic phase. The third parameter defines the state
+	% for this phase, and the fourth defines the input. The fifth parameter is the number of time intervals in the
+	% discrete approximation to the trajectory and input. The sixth and seventh are optional, and specify additional
+	% optimization parameters and non-optimized parameters, neither of which we need for this scenario.
+	phase = traj_setup_dynamic_phase('transit',                ...
+	                                 @dynamic_system,          ...
+	                                 {'position', 'velocity'}, ...
+	                                 {'force'},                ...
+	                                 n_intervals);
 
-	% Here, we create a dynamic phase. We must specify the dynamics
-	% in use and may specify the number of intervals for this phase.
-	% Additionally, we may create a "cost" function via traj_create_cost()
-	% or constraints and add them to the resulting dynamic phase.
-	phase = traj_create_phase(dynamics, n_intervals);
+	% This is the scenario function. It takes in a scenario that is populated with symbolic values, and imposes additional constraints
+	% and costs upon the scenario.
+	function [cost,start_state_con,end_state_con] = scenario_fcn(scenario)
+		% Generate a cost (the only cost) proportional to the duration of the trajectory.
+		% scenario.phases might need to be a cell array here... we'll see.
+		cost = traj_create_cost('Duration', scenario.phases(1).duration);
 
-	% Now we need to constrain the starting and ending states to be equal to the origin
-	% and one unit in the positive direction, respectively. To do this, we first need to be able
-	% to access the states. We can get a vector of all the states using traj_get_states(phase)
-	states = traj_get_states(phase);
+		% Constrain the starting state to be at the origin and the ending state to be
+		% a stationary car at position 1
+		start_state_con = traj_create_constraint('Starting state', scenario.phases(1).states(:,1),   '=', [0; 0]);
+		end_state_con   = traj_create_constraint('Ending state',   scenario.phases(1).states(:,end), '=', [1; 0]);
+	end
 
-	% Create the constraint for the starting state. Set it to the origin. traj_create_constraint()
-	% takes three parameters. The 2nd parameter sets the constraint type ('='/'==', '<=', or '>='), and the other
-	% two are the "sides" of the equation or inequality.
-	initial_state_constraint = traj_create_constraint(states(:,1), '=', [ 0
-	                                                                      0 ]);
-
-	% Name this constraint. traj_add_name() can take in essentially any optimizer structure and
-	% give it a name.
-	initial_state_constraint = traj_add_name(initial_state_constraint, 'Initial state');
-
-	% Similarly, create an inequality constraint for the ending state and name it
-	ending_state_constraint = traj_create_constraint(states(:,end), '=', [ 1
-	                                                                       0 ]);
-	ending_state_constraint = traj_add_name(ending_state_constraint, 'Ending state');
-
-	% Add the constraints to the phase
-	% traj_add_constraint() adds the constraint to the given phase or scenario
-	phase = traj_add_constraint(phase, initial_state_constraint);
-	phase = traj_add_constraint(phase, ending_state_constraint);
-
-	% Create the scenario structure itself. Go ahead and add the phase to the scenario during initialization.
-	scenario = traj_create_scenario(phase);
-
-	% Retrieve the duration of the scenario. In this case, traj_get_duration()
-	% returns the sum of the durations of the phases. traj_get_duration() may also be used
-	% on an individual phase to retrieve just its duration.
-	duration = traj_get_duration(scenario);
-
-	% Add on the cost. In our case, we're trying to minimize the duration of the trajectory,
-	% so the cost is proportional to the duration.
-	% traj_create_cost() takes in the (symbolic) cost function. It also allows a name to be specified
-	% for the cost.
-	cost = traj_create_cost(duration, 'Time');
-	scenario = traj_add_cost(scenario, cost);
+	% This sets up the scenario. We pass a name (optional, not used here),  the scenario function
+	% (optional), and each phase for the scenario (in order).
+	% If multiple phases with the same name are passed, this will automatically append "_N" to their name, where
+	% N is an increasing positive integer.
+	scenario = traj_setup_scenario(@scenario_fcn, phase);
 
 	% Run the optimization
 	% This returns the scenario and a success flag (also stored in the scenario)
