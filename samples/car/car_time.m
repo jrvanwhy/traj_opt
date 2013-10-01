@@ -16,9 +16,9 @@
 % Let's return the completed scenario structure, so the user may inspect the results
 % Also, the number of "intervals" for the dynamics representation (equivalent to timesteps for an ODE solver)
 % is a parameter of this function.
-function scenario = car_time(n_intervals)
+function [scenario,phase] = car_time(n_intervals) % Added phase output for debugging, should remove once done.
 	% Here, we create a dynamic phase representing the car's trip. The first parameter is the name of the phase (optional), the second
-	% should be the "dynamic system" function, which is of the form [dx,varargs] = dynsys(x, u, add_params, noopt_params)
+	% should be the "dynamic system" function, which is of the form [dx,...] = dynsys(x, u, add_params, noopt_params)
 	% and defines costs and constraints throughout this dynamic phase. The third parameter defines the state
 	% for this phase, and the fourth defines the input. The fifth parameter is the number of time intervals in the
 	% discrete approximation to the trajectory and input. The sixth and seventh are optional, and specify additional
@@ -28,6 +28,10 @@ function scenario = car_time(n_intervals)
 	                                 {'position', 'velocity'}, ...
 	                                 {'force'},                ...
 	                                 n_intervals);
+
+	% Debugging
+	scenario = [];
+	return
 
 	% This sets up the scenario. We pass a name (optional, not used here),  the scenario function
 	% (optional), and each phase for the scenario (in order).
