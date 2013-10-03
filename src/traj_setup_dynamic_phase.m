@@ -140,17 +140,6 @@ end
 % This function 'clones' an interval, generating a larger interval that consisting of multiple copies
 % of the input interval combined into one.
 function int_out = clone_interval(int_in, count)
-%     interval    An interval structure representing one interval within the dynamic phase. Each function inside is defined
-%                 in terms of the start params, end params, int_params, shared params, and noopt_params (in that order).
-%         name          This interval type's name
-%         costs         The per-interval costs for this interval type
-%         constraints   A cell array of constraints for this interval type (per-interval)
-%         start_params  Parameters shared with the "previous" interval of this type.
-%         end_params    Parameters shared with the "next" (dynamically) interval of this type.
-%         shared_params Parameters shared by all intervals of this type
-%         noopt_params  Shared parameters not optimized by the optimizer
-%         int_params    Parameters specific to each interval of this type
-
 	% Informative message for the user
 	disp(['	Cloning interval ''' int_in.name ''' ' num2str(count) ' times.'])
 
@@ -160,13 +149,102 @@ function int_out = clone_interval(int_in, count)
 	% Define starting and ending parameters (they are simply numbered versions of the input interval's
 	% starting and ending parameters)
 	for iter = 1:numel(int_in.start_params)
-		int_out.start_params{iter} = [int_in.start_params{iter} '/1'];
+		int_out.start_params{iter,1} = [int_in.start_params{iter} '/1'];
 	end
 	for iter = 1:numel(int_in.end_params)
-		int_out.end_params{iter} = [int_in.end_params{iter} '/' num2str(count+1)];
+		int_out.end_params{iter,1} = [int_in.end_params{iter} '/' num2str(count+1)];
 	end
 
-	% Todo: finish this function
+	% The shared parameters are simply copied over, as are the noopt parameters
+	int_out.shared_params = int_in.shared_params(:);
+	int_out.noopt_params  = int_in.noopt_params(:);
+
+	% The internal states become interior params; the inputs stay interior params but are duplicated.
+	% We'll insert the inputs first, then the states
+	int_out.int_params = [];
+	for iter1 = 1:count
+		% Append numbers to the inputs
+		for iter2 = 1:numel(int_in.int_params)
+			int_out.int_params{end+1,1} = [int_in.int_params{iter2} '/' num2str(iter1)];
+		end
+	end
+	for iter1 = 2:count
+		% Append numbers to each sub-state
+		for iter2 = 1:numel(int_in.end_params)
+			int_out.int_params{end+1,1} = [int_in.end_params{iter2} '/' num2str(iter1)];
+		end
+	end
+
+	% Generate symbolic variables for each input for the new interval's functions
+	sym_start_params  = sym('b', size(int_out.start_params));
+	sym_end_params    = sym('e', size(int_out.end_params));
+	sym_int_params    = sym('i', size(int_out.int_params));
+	sym_shared_params = sym('s', size(int_out.shared_params));
+	sym_noopt_params  = sym('n', size(int_out.noopt_params));
+	sym_duration      = sym('t', 'real');
+
+	% Create sub-interval input representations
+	disp('		Creating sub-interval input representations')
+	subint_start_params = [sym_start_params, ...
+		reshape(sym_int_params(count*numel(int_in.int_params)+1:...
+			count*(numel(int_in.int_params)+numel(int_in.end_params))-numel(int_in.end_params)), ...
+			numel(int_in.end_params), count-1)];
+	subint_end_params = [subint_start_params(:,2:end), sym_end_params];
+	subint_int_params = reshape(sym_int_params(1:count*numel(int_in.int_params)), numel(int_in.int_params), count);
+
+	% Clone the constraints if there are any
+	if isfield(int_in, 'constraints')
+		disp('		Cloning constraints')
+		int_out.constraints = [];
+		for iter1 = 1:numel(int_in.constraints)
+			disp(['			Processing constraint ''' int_in.constraints{iter1}.name ''''])
+			for iter2 = 1:count
+				% Copy over the basic constraint structure
+				int_out.constraints{end+1} = int_in.constraints{iter1};
+
+				% Append a number to the constraint's name
+				int_out.constraints{end}.name = [int_in.constraints{iter1}.name '/' num2str(iter2)];
+
+				% Update the constraint function to reflect the new function inputs
+				int_out.constraints{end}.fcn = int_in.constraints{iter1}.fcn(...
+					subint_start_params(:,iter2), ...
+					subint_end_params(:,iter2),   ...
+					subint_int_params(:,iter2),   ...
+					sym_shared_params,            ...
+					sym_noopt_params,             ...
+					sym_duration/count);
+			end
+		end
+	end
+
+	% Clone the costs, if any exist
+	if isfield(int_in, 'costs')
+		disp('		Cloning costs')
+		int_out.costs = [];
+		for iter1 = 1:numel(int_in.costs)
+			disp(['			Processing cost ''' int_in.costs{iter1}.name ''''])
+			for iter2 = 1:count
+				% Copy over the basic cost structure
+				int_out.costs{end+1} = int_in.costs{iter1};
+
+				% Append a number to the cost's name
+				int_out.costs{end}.name = [int_in.costs{iter1}.name '/' num2str(iter2)];
+
+				% Update the cost function to reflect the new function inputs
+				int_out.costs{end}.fcn = int_in.costs{iter1}.fcn(...
+					subint_start_params(:,iter2), ...
+					subint_end_params(:,iter2),   ...
+					subint_int_params(:,iter2),   ...
+					sym_shared_params,            ...
+					sym_noopt_params,             ...
+					sym_duration/count);
+			end
+		end
+	end
+
+	% Clean up the symbolic variables
+	disp('		Cleaning up symbolic variables')
+	syms sym_start_params sym_end_params sym_int_params sym_shared_params sym_noopt_params sym_duration clear
 end
 
 % This function generates anonymous functions representing the dynamic system function
