@@ -41,6 +41,9 @@ function constraint = traj_create_constraint(name, lside, type, rside)
 		type = '=';
 	end
 
+	% Simplify the constraint function
+	constraint.fcn = simplify(constraint.fcn);
+
 	% Copy over the constraint's type
 	constraint.con_type = type;
 end
