@@ -16,7 +16,7 @@
 % Let's return the completed scenario structure, so the user may inspect the results
 % Also, the number of "intervals" for the dynamics representation (equivalent to timesteps for an ODE solver)
 % is a parameter of this function.
-function [scenario,phase] = car_time(n_intervals) % Added phase output for debugging, should remove once done.
+function scenario = car_time(n_intervals) % Added phase output for debugging, should remove once done.
 	% Here, we create a dynamic phase representing the car's trip. The first parameter is the name of the phase (optional), the second
 	% should be the "dynamic system" function, which is of the form [dx,...] = dynsys(x, u, add_params, noopt_params)
 	% and defines costs and constraints throughout this dynamic phase. The third parameter defines the state
@@ -29,15 +29,14 @@ function [scenario,phase] = car_time(n_intervals) % Added phase output for debug
 	                                 {'force'},                ...
 	                                 n_intervals);
 
-	% Debugging
-	scenario = [];
-	return
-
 	% This sets up the scenario. We pass a name (optional, not used here),  the scenario function
 	% (optional), and each phase for the scenario (in order).
 	% If multiple phases with the same name are passed, this will automatically append "_N" to their name, where
 	% N is an increasing positive integer.
 	scenario = traj_setup_scenario(@scenario_fcn, phase);
+
+	% Debugging
+	return
 
 	% Run the optimization
 	% This returns the scenario and a success flag (also stored in the scenario)
