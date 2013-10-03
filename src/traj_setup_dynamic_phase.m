@@ -312,7 +312,14 @@ function phase = gen_dynsys_fcns(phase, dynsys_fcn)
 				phase.dynsys.constraints = [phase.dynsys.constraints {output}];
 
 			case 'cost'
-				error('TODO: this.') % Look at constraints, above.
+				% Progress message so the user doesn't think it's frozen
+				disp(['		Processing cost ''' output.name ''''])
+
+				% Convert the cost function to an anonymous function with appropriate inputs, then
+				% append it to the costs field
+				output.fcn = matlabFunction(output, 'vars', ...
+					{sym_state, sym_input, sym_add_params, sym_noopt_params});
+				phase.dynsys.costs{end+1} = output;
 
 			otherwise
 				% Spit out an error -- this is not an acceptable structure type
