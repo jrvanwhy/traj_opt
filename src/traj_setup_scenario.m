@@ -18,6 +18,9 @@ function scenario = traj_setup_scenario(varargin)
 	% if the user specified a name
 	scenario.name = '';
 
+	% Also, initialize the scenario function to empty -- it will be filled in if provided
+	scenario_fcn = [];
+
 	% Process each input in order
 	for iter = 1:numel(varargin)
 		% Switch based on the type of this input
@@ -32,9 +35,14 @@ function scenario = traj_setup_scenario(varargin)
 
 			% Add the name to the scenario
 			scenario.name = varargin{iter};
-		elseif isstruct(varargin{iter}) && isfield(varargin{iter}, 'struct_type') && varargin{iter}.struct_type == 'dynamic phase'
+		elseif isa(varargin{iter}, 'function_handle')
+			% This is the scenario function
+			% Save it to a variable for later use.
+			scenario_fcn = varargin{iter};
+
+		elseif isstruct(varargin{iter}) && isfield(varargin{iter}, 'struct_type') && strcmp(varargin{iter}.struct_type, 'dynamic phase')
 			% This is a new phase.
-			disp(['	Processing phase ''' varargin{iter}.name ''''])
+			disp(['	Processing phase ''' varargin{iter}.names.phase ''''])
 
 			% Call the phase processing function
 			scenario = add_phase(scenario, varargin{iter});
@@ -43,9 +51,17 @@ function scenario = traj_setup_scenario(varargin)
 			error(['Input ' num2str(iter) ' not recognized'])
 		end
 	end
+
+	% Call and process data from the scenario function.
+	scenario = process_scenario_fcn(scenario, scenario_fcn);
 end
 
 % This function adds a phase to the given scenario
 function scenario = add_phase(scenario, phase)
+	error('TODO: this')
+end
+
+% Handles everything necessary for the scenario function
+function scenario = process_scenario_fcn(scenario, scenario_fcn)
 	error('TODO: this')
 end
