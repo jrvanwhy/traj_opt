@@ -3,7 +3,9 @@
 % of a fast optimization function, if desired).
 
 % Scenario structure setup:
+% interval    A large interval structure containing all the phases.
 % name        This scenario's name. Blank if not specified by the user.
+% phases      An array of the phase structures in this scenario
 % version     The version of the optimizer that generated this scenario
 % struct_type The type of this structure -- always 'scenario'
 
@@ -58,6 +60,24 @@ end
 
 % This function adds a phase to the given scenario
 function scenario = add_phase(scenario, phase)
+	% Append to the phases list (create it if necessary)
+	% Also, append the intervals (or just copy in interval if none exist yet)
+	if isfield(scenario, 'phases')
+		scenario.phases(end+1) = phase;
+		scenario.interval = concatenate_intervals(scenario.interval, phase.interval);
+	else
+		scenario.phases(1) = phase;
+		scenario.interval  = phase.interval;
+	end
+end
+
+% This function generates the states and phases for the given scenario
+function scenario = gen_states_inputs(scenario)
+	error('TODO: this')
+end
+
+% This function concatenates two intervals, producing one larger interval
+function intout = concatenate_intervals(intin1, intin2)
 	error('TODO: this')
 end
 
