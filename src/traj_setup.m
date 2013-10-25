@@ -32,6 +32,7 @@ function scenario = traj_dircol(scenario)
 	scenario.inputs.inputs                            = sym('u', [size(scenario.inputs.def_input, 1), 2*scenario.shoots+1]);
 	scenario.duration                                 = sym('t', 'real');
 	assume(scenario.duration >= 0);
+	error(' Old code!')
 	state_params = scenario.states.states(:,1:2:2*scenario.shoots+1);
 	scenario.params.params = [scenario.params.params; state_params(:); scenario.inputs.inputs(:); scenario.duration];
 	scenario.params = declare_field(scenario.params, 'init_params');

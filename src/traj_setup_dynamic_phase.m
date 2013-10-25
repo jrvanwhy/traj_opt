@@ -13,6 +13,7 @@
 %                  by the user prior to running the optimization (cell array of names).
 
 % The phases structure has the following fields:
+%     duration    The duration, for the scenario function and later processing
 %     dynsys      A structure containing anonymous functions derived from the dynsys_fcn argument
 %         constraints A cell array of constraints
 %         costs       A cell array of cost functions
@@ -23,6 +24,8 @@
 %         name          This interval type's name
 %         costs         The per-interval costs for this interval type
 %         constraints   A cell array of constraints for this interval type (per-interval)
+%         start_funcs   Additional functions to be evaluated only at the start of the phase
+%         funcs         Miscellaneous functions (state, duration, input, ...). Most map parameters to more useful values.
 %         start_params  Parameters shared with the "previous" interval of this type.
 %         end_params    Parameters shared with the "next" (dynamically) interval of this type.
 %         shared_params Parameters shared by all intervals of this type
@@ -135,6 +138,9 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 	% Generate the phase's interval structure
 	phase.phase_interval = clone_interval(phase.interval, phase.n_intervals);
 
+	% Add on the duration function (because it's special and important)
+	%phase = phase_gen_duration(phase); % TODO: This
+
 	% Let the user know when this function terminates
 	disp(['Setup for phase ''' name ''' completed.'])
 end
@@ -244,9 +250,74 @@ function int_out = clone_interval(int_in, count)
 		end
 	end
 
+	% Iterate through starting functions, generating them with the correct parameters
+	if isfield(int_in, 'start_funcs')
+		% The list of function names
+		fcn_names = fieldnames(int_in.start_funcs);
+
+		% Iterate through them
+		for iter = 1:numel(fcn_names)
+			disp(['		Processing starting function ''' fcn_names{iter} ''''])
+
+			% Call it with the correct parameters first and simplify
+			int_out.funcs.(fcn_names{iter}){1,1} = simplify(int_in.start_funcs.(fcn_names{iter})(...
+				subint_start_params(:,1), ...
+				subint_end_params(:,1),   ...
+				subint_int_params(:,1),   ...
+				sym_shared_params,        ...
+				sym_noopt_params,         ...
+				sym_duration/count));
+		end
+	end
+
+	% Iterate through the additional functions, generating new ones that that return their value for each sub-interval
+	if isfield(int_in, 'funcs')
+		% The list of function names
+		fcn_names = fieldnames(int_in.funcs);
+
+		for iter = 1:numel(fcn_names)
+			disp(['		Processing function ''' fcn_names{iter} ''''])
+
+			% If the output function is empty, initialize it
+			if (~isfield(int_out.funcs, fcn_names{iter}))
+				int_out.funcs.(fcn_names{iter}) = {};
+			end
+
+			% Iterate through each sub-interval, creating a new function for each sub-interval
+			for iter2 = 1:count
+				% Create the symbolic form of the new function
+				int_out.funcs.(fcn_names{iter}){1,end+1} = simplify(int_in.funcs.(fcn_names{iter})(...
+					subint_start_params(:,iter2), ...
+					subint_end_params(:,iter2),   ...
+					subint_int_params(:,iter2),   ...
+					sym_shared_params,            ...
+					sym_noopt_params,             ...
+					sym_duration/count));
+			end
+		end
+	end
+
+	% Convert additional functions to anonymous functions
+	if isfield(int_out, 'funcs')
+		% Iterate through each function
+		fcn_names = fieldnames(int_out.funcs);
+
+		for iter = 1:numel(fcn_names)
+			disp(['		Converting function ''' fcn_names{iter} ''''])
+
+			% Iterate through each element, converting one-by-one for performance.
+			for iter2 = 1:numel(int_out.funcs.(fcn_names{iter}))
+				% Do the conversion
+				int_out.funcs.(fcn_names{iter}){iter2} = matlabFunction(...
+					int_out.funcs.(fcn_names{iter}){iter2}, 'vars', ...
+					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+			end
+		end
+	end
+
 	% Clean up the symbolic variables
 	disp('		Cleaning up symbolic variables')
-	syms sym_start_params sym_end_params sym_int_params sym_shared_params sym_noopt_params sym_duration clear
+	syms b e i s n t clear
 end
 
 % This function generates anonymous functions representing the dynamic system function
@@ -330,7 +401,7 @@ function phase = gen_dynsys_fcns(phase, dynsys_fcn)
 	end
 
 	% Clean up our symbolic variables
-	syms sym_state sym_input sym_add_params sym_noopt_params clear
+	syms x u a n clear
 end
 
 % This generates the interval structure for each step in the dynamic simulation of this phase
@@ -416,7 +487,16 @@ function phase = gen_int_dircol_1(phase)
 			{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
 	end
 
+	% Put in useful functions
+	phase.interval.funcs.duration = matlabFunction(sym_duration, 'vars', ...
+		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+	% There is one more state than there are intervals...
+	phase.interval.start_funcs.states = matlabFunction(sym_start_params, 'vars', ...
+		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+	phase.interval.funcs.states       = matlabFunction(sym_end_params, 'vars', ...
+		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+
 	% Clean up our symbolic variables
 	disp('		Cleaning up interval symbolic variables')
-	syms sym_start_params sym_end_params sym_int_params sym_shared_params sym_noopt_params sym_duration clear
+	syms b e i s n t clear
 end

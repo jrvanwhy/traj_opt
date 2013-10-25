@@ -69,7 +69,7 @@ end
 % and costs upon the scenario.
 function [cost,start_state_con,end_state_con] = scenario_fcn(scenario)
 	% Generate a cost (the only cost) proportional to the duration of the trajectory.
-	cost = traj_create_cost('Duration', scenario.phases{1}.duration);
+	cost = traj_create_cost('Duration', scenario.phases(1).duration);
 
 	% Constrain the starting state to be at the origin and the ending state to be
 	% a stationary car at position 1

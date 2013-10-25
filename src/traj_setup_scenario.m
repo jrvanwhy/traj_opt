@@ -42,9 +42,17 @@ function scenario = traj_setup_scenario(varargin)
 			% Save it to a variable for later use.
 			scenario_fcn = varargin{iter};
 
+			% Verify that the number of output arguments is positive
+			if (nargout(scenario_fcn) < 1)
+				error('The scenario function must have a constant positive number of output arguments')
+			end
+
 		elseif isstruct(varargin{iter}) && isfield(varargin{iter}, 'struct_type') && strcmp(varargin{iter}.struct_type, 'dynamic phase')
 			% This is a new phase.
 			disp(['	Processing phase ''' varargin{iter}.names.phase ''''])
+
+			% Update the version of this input struct
+			varargin{iter} = traj_version_update(varargin{iter});
 
 			% Call the phase processing function
 			scenario = add_phase(scenario, varargin{iter});
@@ -83,5 +91,72 @@ end
 
 % Handles everything necessary for the scenario function
 function scenario = process_scenario_fcn(scenario, scenario_fcn)
-	error('TODO: this')
+	% Check if a scenario function was given. If not, return scenario and exit.
+	if isempty(scenario_fcn)
+		scenario = scenario;
+		return
+	end
+
+	% Set up the symbolic variables representing the optimization and additional parameters
+	opt_params   = sym('x', [numel(scenario.phases.phase_interval.start_params)  + ...
+	                         numel(scenario.phases.phase_interval.end_params)    + ...
+	                         numel(scenario.phases.phase_interval.int_params)    + ...
+	                         numel(scenario.phases.phase_interval.shared_params) + 1, 1]); % Add up all parameters (including 1 extra for duration).
+	noopt_params = sym('n', [numel(scenario.phases.phase_interval.noopt_params) 1]);
+
+	% Variables for keeping track of our position in the parameter list
+	start_params_pos   = [0 0];
+	end_params_pos     = [0 0];
+	int_params_pos     = [0 0];
+	shared_params_pos  = [0 0];
+	noopt_params_pos   = [0 0];
+	duration_param_pos = 0;
+
+	% Go through each phase. Add each function in each phase to the phase as a symbolic variable
+	% As an example, this is what generates the states field of phases
+	for iter_phase = 1:numel(scenario.phases)
+		% Update positions in parameter list
+		% We stagger each of them in order per phase.
+		start_params_pos(1)  = duration_param_pos   + 1;
+		start_params_pos(2)  = start_params_pos(1)  + numel(scenario.phases(iter_phase).phase_interval.start_params)  - 1;
+		end_params_pos(1)    = start_params_pos(2)  + 1;
+		end_params_pos(2)    = end_params_pos(1)    + numel(scenario.phases(iter_phase).phase_interval.end_params)    - 1;
+		int_params_pos(1)    = end_params_pos(2)    + 1;
+		int_params_pos(2)    = int_params_pos(1)    + numel(scenario.phases(iter_phase).phase_interval.int_params)    - 1;
+		shared_params_pos(1) = int_params_pos(2)    + 1;
+		shared_params_pos(2) = shared_params_pos(1) + numel(scenario.phases(iter_phase).phase_interval.shared_params) - 1;
+		duration_param_pos   = shared_params_pos(2) + 1;
+
+		% Noopt parameters are special, because they're a different argument
+		noopt_params_pos(1)  = noopt_params_pos(2) + 1;
+		noopt_params_pos(2)  = noopt_params_pos(1) + numel(scenario.phases(iter_phase).phase_interval.noopt_params)  - 1;
+
+		fcn_names = fieldnames(scenario.phases(iter_phase).phase_interval.funcs);
+		for iter = 1:numel(fcn_names)
+			iter_fcn = fcn_names{iter};
+			disp(['		Processing function ''' iter_fcn ''''])
+
+			% Add in the field, so it may be appended to. Note that this must be set to the right type
+			% at initialization, so we'll make it symbolic from the start.
+			scenario.phases(iter_phase).(iter_fcn) = sym([]);
+
+			% Iterate through all sub-functions in the array, appending them to the new field
+			for iter_col = 1:numel(scenario.phases(iter_phase).phase_interval.funcs.(iter_fcn))
+				% Grab the function for this column
+				col_fcn = scenario.phases(iter_phase).phase_interval.funcs.(iter_fcn){iter_col};
+
+				% Call the column function
+				scenario.phases(iter_phase).(iter_fcn)(:,end+1) = simplify(col_fcn(...
+					opt_params(start_params_pos(1):start_params_pos(2)), ...
+					opt_params(end_params_pos(1)  : end_params_pos(2)),  ...
+					opt_params(int_params_pos(1)  : int_params_pos(2)),  ...
+					opt_params(shared_params_pos(1) : shared_params_pos(2)), ...
+					noopt_params(noopt_params_pos(1) : noopt_params_pos(2)), ...
+					opt_params(duration_param_pos)));
+			end
+		end
+	end
+
+	% Call the scenario function, capturing all output arguments
+	[scenario_varouts{1:nargout(scenario_fcn)}] = scenario_fcn(scenario);
 end
