@@ -62,58 +62,54 @@ function scenario = traj_setup_scenario(varargin)
 		end
 	end
 
+	% Make sure at least one phase was specified.
+	if ~isfield(scenario, 'phases')
+		error('At least one phase must be passed!')
+	end
+
+	% Map the optimization and non-optimized parameters to the interval's
+	% various parameter sets
+	scenario.param_maps = map_interval_params(scenario);
+
 	% Call and process data from the scenario function.
 	scenario = process_scenario_fcn(scenario, scenario_fcn);
 end
 
 % This function adds a phase to the given scenario
 function scenario = add_phase(scenario, phase)
-	% Append to the phases list (create it if necessary)
-	% Also, append the intervals (or just copy in interval if none exist yet)
+	% Append to the phases list (creating it if necessary)
 	if isfield(scenario, 'phases')
 		scenario.phases(end+1) = phase;
-		scenario.interval = concatenate_intervals(scenario.interval, phase.interval);
 	else
 		scenario.phases(1) = phase;
-		scenario.interval  = phase.interval;
 	end
 end
 
-% This function generates the states and phases for the given scenario
-function scenario = gen_states_inputs(scenario)
-	error('TODO: this')
-end
+% This function creates functions mapping the optimization parameters to the
+% interval's parameters
+function param_maps = map_interval_params(scenario)
+	% Count the optimization and non-optimization parameters
+	param_maps.n_opt_params = numel(scenario.phases.phase_interval.start_params)  + ...
+	                          numel(scenario.phases.phase_interval.end_params)    + ...
+	                          numel(scenario.phases.phase_interval.int_params)    + ...
+	                          numel(scenario.phases.phase_interval.shared_params) + ...
+	                          numel(scenario.phases);
+	param_maps.n_noopt_params = numel(scenario.phases.phase_interval.noopt_params);
 
-% This function concatenates two intervals, producing one larger interval
-function intout = concatenate_intervals(intin1, intin2)
-	error('TODO: this')
-end
+	% Set up symbolic variables representing the optimization and additional parameters
+	disp('	Creating optimization and non-optimized symbolic variables')
+	opt_params   = sym('x', [param_maps.n_opt_params,   1]);
+	noopt_params = sym('n', [param_maps.n_noopt_params, 1]);
 
-% Handles everything necessary for the scenario function
-function scenario = process_scenario_fcn(scenario, scenario_fcn)
-	% Check if a scenario function was given. If not, return scenario and exit.
-	if isempty(scenario_fcn)
-		scenario = scenario;
-		return
-	end
-
-	% Set up the symbolic variables representing the optimization and additional parameters
-	opt_params   = sym('x', [numel(scenario.phases.phase_interval.start_params)  + ...
-	                         numel(scenario.phases.phase_interval.end_params)    + ...
-	                         numel(scenario.phases.phase_interval.int_params)    + ...
-	                         numel(scenario.phases.phase_interval.shared_params) + 1, 1]); % Add up all parameters (including 1 extra for duration).
-	noopt_params = sym('n', [numel(scenario.phases.phase_interval.noopt_params) 1]);
-
-	% Variables for keeping track of our position in the parameter list
+	% Positions of the interval's param sets within opt_params
 	start_params_pos   = [0 0];
 	end_params_pos     = [0 0];
 	int_params_pos     = [0 0];
 	shared_params_pos  = [0 0];
-	noopt_params_pos   = [0 0];
 	duration_param_pos = 0;
+	noopt_params_pos   = [0 0];
 
-	% Go through each phase. Add each function in each phase to the phase as a symbolic variable
-	% As an example, this is what generates the states field of phases
+	% Go through each phase, adding parameter map functions
 	for iter_phase = 1:numel(scenario.phases)
 		% Update positions in parameter list
 		% We stagger each of them in order per phase.
@@ -131,6 +127,46 @@ function scenario = process_scenario_fcn(scenario, scenario_fcn)
 		noopt_params_pos(1)  = noopt_params_pos(2) + 1;
 		noopt_params_pos(2)  = noopt_params_pos(1) + numel(scenario.phases(iter_phase).phase_interval.noopt_params)  - 1;
 
+		% Generate the functions
+		disp(['		Generating param map functions for phase ''' scenario.phases(iter_phase).names.phase '''']);
+		param_maps.start_params{iter_phase}  = matlabFunction(...
+			opt_params(start_params_pos(1) :start_params_pos(2) ), 'vars', {opt_params, noopt_params});
+		param_maps.end_params{iter_phase}    = matlabFunction(...
+			opt_params(end_params_pos(1)   :end_params_pos(2)   ), 'vars', {opt_params, noopt_params});
+		param_maps.int_params{iter_phase}    = matlabFunction(...
+			opt_params(int_params_pos(1)   :int_params_pos(2)   ), 'vars', {opt_params, noopt_params});
+		param_maps.shared_params{iter_phase} = matlabFunction(...
+			opt_params(shared_params_pos(1):shared_params_pos(2)), 'vars', {opt_params, noopt_params});
+		param_maps.noopt_params{iter_phase}  = matlabFunction(...
+			noopt_params,                                          'vars', {opt_params, noopt_params});
+		param_maps.duration_param{iter_phase} = matlabFunction(...
+			opt_params(duration_param_pos),                        'vars', {opt_params, noopt_params});
+	end
+
+	% TODO: Correctly deal with noopt_params, making use of the parameter names.
+
+	% Clean up
+	disp('	Cleaning up symbolic variables')
+	syms x n clear
+end
+
+% Handles everything necessary for the scenario function
+function scenario = process_scenario_fcn(scenario, scenario_fcn)
+	% Check if a scenario function was given. If not, return scenario and exit.
+	if isempty(scenario_fcn)
+		scenario = scenario;
+		return
+	end
+
+	disp('	Setting up to call scenario function')
+
+	% Set up the symbolic variables representing the optimization and additional parameters
+	opt_params   = sym('x', [scenario.param_maps.n_opt_params   1]);
+	noopt_params = sym('n', [scenario.param_maps.n_noopt_params 1]);
+
+	% Go through each phase. Add each function in each phase to the phase as a symbolic variable
+	% As an example, this is what generates the states field of phases
+	for iter_phase = 1:numel(scenario.phases)
 		fcn_names = fieldnames(scenario.phases(iter_phase).phase_interval.funcs);
 		for iter = 1:numel(fcn_names)
 			iter_fcn = fcn_names{iter};
@@ -147,16 +183,19 @@ function scenario = process_scenario_fcn(scenario, scenario_fcn)
 
 				% Call the column function
 				scenario.phases(iter_phase).(iter_fcn)(:,end+1) = simplify(col_fcn(...
-					opt_params(start_params_pos(1):start_params_pos(2)), ...
-					opt_params(end_params_pos(1)  : end_params_pos(2)),  ...
-					opt_params(int_params_pos(1)  : int_params_pos(2)),  ...
-					opt_params(shared_params_pos(1) : shared_params_pos(2)), ...
-					noopt_params(noopt_params_pos(1) : noopt_params_pos(2)), ...
-					opt_params(duration_param_pos)));
+					scenario.param_maps.start_params{iter_phase}(opt_params, noopt_params),  ...
+					scenario.param_maps.end_params{iter_phase}(opt_params, noopt_params),    ...
+					scenario.param_maps.int_params{iter_phase}(opt_params, noopt_params),    ...
+					scenario.param_maps.shared_params{iter_phase}(opt_params, noopt_params), ...
+					scenario.param_maps.noopt_params{iter_phase}(opt_params, noopt_params),  ...
+					scenario.param_maps.duration_param{iter_phase}(opt_params, noopt_params)));
 			end
 		end
 	end
 
 	% Call the scenario function, capturing all output arguments
+	disp('	Calling scenario function')
 	[scenario_varouts{1:nargout(scenario_fcn)}] = scenario_fcn(scenario);
+
+	disp(['	Cleaning up symbolic variables'])
 end
