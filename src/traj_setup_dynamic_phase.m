@@ -221,6 +221,10 @@ function int_out = clone_interval(int_in, count)
 					sym_shared_params,            ...
 					sym_noopt_params,             ...
 					sym_duration/count);
+
+				% Convert the function to a symbolic function
+				int_out.constraints{end}.fcn = matlabFunction(int_out.constraints{end}.fcn, 'vars', ...
+					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
 			end
 		end
 	end
@@ -246,6 +250,10 @@ function int_out = clone_interval(int_in, count)
 					sym_shared_params,            ...
 					sym_noopt_params,             ...
 					sym_duration/count);
+
+				% Convert the function to a symbolic function
+				int_out.costs{end}.fcn = matlabFunction(int_out.costs{end}.fcn, 'vars', ...
+					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
 			end
 		end
 	end

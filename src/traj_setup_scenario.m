@@ -73,6 +73,9 @@ function scenario = traj_setup_scenario(varargin)
 
 	% Call and process data from the scenario function.
 	scenario = process_scenario_fcn(scenario, scenario_fcn);
+
+	% Generate the final objecttive and constraint functions
+	scenario.optfcns = gen_optfcns(scenario);
 end
 
 % This function adds a phase to the given scenario
@@ -82,6 +85,29 @@ function scenario = add_phase(scenario, phase)
 		scenario.phases(end+1) = phase;
 	else
 		scenario.phases(1) = phase;
+	end
+end
+
+% This function generates the optfcns structure, containing the optimization costs and constraints
+function optfcns = gen_optfcns(scenario)
+	% Initialize as empty, so we can simply append to them.
+	optfcns.constraints = [];
+	optfcns.costs       = [];
+
+	% Append scenario function costs and constraints
+	if isfield(scenario.scenfun, 'costs')
+		optfcns.costs = [optfcns.costs, scenario.scenfun.costs];
+	end
+	if isfield(scenario.scenfun, 'constraints')
+		optfcns.constraints = [optfcns.constraints, scenario.scenfun.constraints];
+	end
+
+	% Append phase costs and constraints
+	if isfield(scenario.phases.phase_interval, 'costs')
+		optfcns.costs = [optfcns.costs, scenario.phases.phase_interval.costs];
+	end
+	if isfield(scenario.phases.phase_interval, 'constraints')
+		optfcns.constraints = [optfcns.constraints, scenario.phases.phase_interval.constraints];
 	end
 end
 
@@ -196,6 +222,50 @@ function scenario = process_scenario_fcn(scenario, scenario_fcn)
 	% Call the scenario function, capturing all output arguments
 	disp('	Calling scenario function')
 	[scenario_varouts{1:nargout(scenario_fcn)}] = scenario_fcn(scenario);
+
+	% Initialize scenario function fields
+	scenario.scenfun.constraints = {};
+	scenario.scenfun.costs       = {};
+
+	% Iterate through the costs and constraints, adding them to phases
+	disp('	Adding costs and constraints to scenario function representation.')
+	for idx = 1:numel(scenario_varouts)
+		% This is the structure returned in this output
+		output = scenario_varouts{idx};
+
+		% Check that this output has a valid type string
+		if ~isfield(output, 'struct_type')
+			% Spit out an error message; this data type is invalid
+			error(['Scenario system function output ' num2str(idx+1) ' is not of a valid data type'])
+		end
+
+		% Use a switch statement to decide how to handle this output
+		switch output.struct_type
+			case 'constraint'
+				% Let the user know things are happening
+				disp(['		Processing constraint ''' output.name ''''])
+
+				% Convert the constraint function to an anonymous function, then append it to the
+				% constraints field.
+				output.fcn = matlabFunction(simplify(output.fcn), 'vars', ...
+					{opt_params, noopt_params});
+				scenario.scenfun.constraints{end+1} = output;
+
+			case 'cost'
+				% Progress message so the user doesn't think it's frozen
+				disp(['		Processing cost ''' output.name ''''])
+
+				% Convert the cost function to an anonymous function with appropriate inputs, then
+				% append it to the costs field
+				output.fcn = matlabFunction(output.fcn, 'vars', ...
+					{opt_params, noopt_params});
+				scenario.scenfun.costs{end+1} = output;
+
+			otherwise
+				% Spit out an error -- this is not an acceptable structure type
+				error(['Structure type ''' output.struct_type ''' not a valid return type for the dynamic system function.'])
+		end
+	end
 
 	disp(['	Cleaning up symbolic variables'])
 end
