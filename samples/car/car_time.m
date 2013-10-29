@@ -35,9 +35,6 @@ function scenario = car_time(n_intervals) % Added phase output for debugging, sh
 	% N is an increasing positive integer.
 	scenario = traj_setup_scenario(@scenario_fcn, phase);
 
-	% Debugging
-	return
-
 	% Run the optimization
 	% This returns the scenario and a success flag (also stored in the scenario)
 	% that is true if it was successful and false otherwise.
