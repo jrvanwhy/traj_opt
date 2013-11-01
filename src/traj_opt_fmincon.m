@@ -98,6 +98,9 @@ function [scenario,success] = run_opt_fmincon(scenario, noopt_params)
 	% Call fmincon
 	scenario.opt_fmincon.soln = fmincon(@obj_fcn, ones(scenario.param_maps.n_opt_params, 1), [], [], [], [], [], [], @constr_fcn, options);
 
+	% Copy over the solution as the final solution
+	scenario.soln = scenario.opt_fmincon.soln;
+
 	% For now, simply return success
 	success = true;
 end
