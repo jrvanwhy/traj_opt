@@ -127,25 +127,24 @@ function optfcns = gen_optfcns(scenario)
 
 	% Append phase costs and constraints. Note that we need to convert the cost and constraint
 	% parameters to the scenario's parameters.
-	if isfield(scenario.phases.phase_interval, 'costs')
-		% Iterate to convert each function (twice -- once per phase, and once per cost)
-		for phasenum = 1:numel(scenario.phases)
-			for costnum = 1:numel(scenario.phases.phase_interval.costs)
-				optfcns.costs{end+1,1} = scenario.phases.phase_interval.costs{costnum};
+	% We do this one phase at the time
+	for phasenum = 1:numel(scenario.phases)
+		if isfield(scenario.phases(phasenum).phase_interval, 'costs')
+			% Iterate to convert each function
+			for costnum = 1:numel(scenario.phases(phasenum).phase_interval.costs)
+				optfcns.costs{end+1,1} = scenario.phases(phasenum).phase_interval.costs{costnum};
 				optfcns.costs{end}.fcn = traj_convert_phase_params(scenario.param_maps,    ...
-				                                                   optfcns.costs{end}.fcn, ...
-				                                                   phasenum);
+										   optfcns.costs{end}.fcn, ...
+										   phasenum);
 			end
 		end
-	end
-	if isfield(scenario.phases.phase_interval, 'constraints')
-		% The constraints are the same as the costs
-		for phasenum = 1:numel(scenario.phases)
-			for constrnum = 1:numel(scenario.phases.phase_interval.constraints)
-				optfcns.constraints{end+1,1} = scenario.phases.phase_interval.constraints{constrnum};
+		if isfield(scenario.phases(phasenum).phase_interval, 'constraints')
+			% The constraints are the same as the costs
+			for constrnum = 1:numel(scenario.phases(phasenum).phase_interval.constraints)
+				optfcns.constraints{end+1,1} = scenario.phases(phasenum).phase_interval.constraints{constrnum};
 				optfcns.constraints{end}.fcn = traj_convert_phase_params(scenario.param_maps,          ...
-				                                                         optfcns.constraints{end}.fcn, ...
-				                                                         phasenum);
+											 optfcns.constraints{end}.fcn, ...
+											 phasenum);
 			end
 		end
 	end
@@ -155,12 +154,16 @@ end
 % interval's parameters
 function param_maps = map_interval_params(scenario)
 	% Count the optimization and non-optimization parameters
-	param_maps.n_opt_params = numel(scenario.phases.phase_interval.start_params)  + ...
-	                          numel(scenario.phases.phase_interval.end_params)    + ...
-	                          numel(scenario.phases.phase_interval.int_params)    + ...
-	                          numel(scenario.phases.phase_interval.shared_params) + ...
-	                          numel(scenario.phases);
-	param_maps.n_noopt_params = numel(scenario.phases.phase_interval.noopt_params);
+	param_maps.n_opt_params   = 0;
+	param_maps.n_noopt_params = 0;
+	for phasenum = 1:numel(scenario.phases)
+		param_maps.n_opt_params = param_maps.n_opt_params                                       + ...
+		                          numel(scenario.phases(phasenum).phase_interval.start_params)  + ...
+					  numel(scenario.phases(phasenum).phase_interval.end_params)    + ...
+					  numel(scenario.phases(phasenum).phase_interval.int_params)    + ...
+					  numel(scenario.phases(phasenum).phase_interval.shared_params) + 1; % Extra 1 for duration
+		param_maps.n_noopt_params = param_maps.n_noopt_params + numel(scenario.phases(phasenum).phase_interval.noopt_params);
+	end
 
 	% Set up symbolic variables representing the optimization and additional parameters
 	disp('	Creating optimization and non-optimized symbolic variables')
