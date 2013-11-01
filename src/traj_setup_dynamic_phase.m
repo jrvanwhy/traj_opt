@@ -138,8 +138,8 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 	% Generate the phase's interval structure
 	phase.phase_interval = clone_interval(phase.interval, phase.n_intervals);
 
-	% Add on the duration function (because it's special and important)
-	%phase = phase_gen_duration(phase); % TODO: This
+	% Fix the duration function (because it's special and important)
+	phase = phase_fix_duration(phase);
 
 	% Let the user know when this function terminates
 	disp(['Setup for phase ''' name ''' completed.'])
@@ -323,6 +323,10 @@ function int_out = clone_interval(int_in, count)
 		end
 	end
 
+	% Add the duration function, so it returns the duration for the whole phase, not for each interval.
+	int_out.funcs.duration = {matlabFunction(sym_duration, 'vars', ...
+		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration})};
+
 	% Clean up the symbolic variables
 	disp('		Cleaning up symbolic variables')
 	syms b e i s n t clear
@@ -496,8 +500,6 @@ function phase = gen_int_dircol_1(phase)
 	end
 
 	% Put in useful functions
-	phase.interval.funcs.duration = matlabFunction(sym_duration, 'vars', ...
-		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
 	% There is one more state than there are intervals...
 	phase.interval.start_funcs.states = matlabFunction(sym_start_params, 'vars', ...
 		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
@@ -507,4 +509,9 @@ function phase = gen_int_dircol_1(phase)
 	% Clean up our symbolic variables
 	disp('		Cleaning up interval symbolic variables')
 	syms b e i s n t clear
+end
+
+% This makes the duration function work for the whole phase, not each individual interval
+function phase = phase_fix_duration(phase)
+	
 end
