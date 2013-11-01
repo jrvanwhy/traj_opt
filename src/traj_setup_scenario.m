@@ -119,10 +119,10 @@ function optfcns = gen_optfcns(scenario)
 
 	% Append scenario function costs and constraints
 	if isfield(scenario.scenfun, 'costs')
-		optfcns.costs = [optfcns.costs, scenario.scenfun.costs];
+		optfcns.costs(:,1) = [optfcns.costs scenario.scenfun.costs];
 	end
 	if isfield(scenario.scenfun, 'constraints')
-		optfcns.constraints = [optfcns.constraints, scenario.scenfun.constraints];
+		optfcns.constraints(:,1) = [optfcns.constraints scenario.scenfun.constraints];
 	end
 
 	% Append phase costs and constraints. Note that we need to convert the cost and constraint
@@ -131,7 +131,7 @@ function optfcns = gen_optfcns(scenario)
 		% Iterate to convert each function (twice -- once per phase, and once per cost)
 		for phasenum = 1:numel(scenario.phases)
 			for costnum = 1:numel(scenario.phases.phase_interval.costs)
-				optfcns.costs{end+1}   = scenario.phases.phase_interval.costs{costnum};
+				optfcns.costs{end+1,1} = scenario.phases.phase_interval.costs{costnum};
 				optfcns.costs{end}.fcn = traj_convert_phase_params(scenario.param_maps,    ...
 				                                                   optfcns.costs{end}.fcn, ...
 				                                                   phasenum);
@@ -142,7 +142,7 @@ function optfcns = gen_optfcns(scenario)
 		% The constraints are the same as the costs
 		for phasenum = 1:numel(scenario.phases)
 			for constrnum = 1:numel(scenario.phases.phase_interval.constraints)
-				optfcns.constraints{end+1}   = scenario.phases.phase_interval.constraints{constrnum};
+				optfcns.constraints{end+1,1} = scenario.phases.phase_interval.constraints{constrnum};
 				optfcns.constraints{end}.fcn = traj_convert_phase_params(scenario.param_maps,          ...
 				                                                         optfcns.constraints{end}.fcn, ...
 				                                                         phasenum);
