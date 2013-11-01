@@ -138,9 +138,6 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 	% Generate the phase's interval structure
 	phase.phase_interval = clone_interval(phase.interval, phase.n_intervals);
 
-	% Fix the duration function (because it's special and important)
-	phase = phase_fix_duration(phase);
-
 	% Let the user know when this function terminates
 	disp(['Setup for phase ''' name ''' completed.'])
 end
@@ -327,6 +324,11 @@ function int_out = clone_interval(int_in, count)
 	int_out.funcs.duration = {matlabFunction(sym_duration, 'vars', ...
 		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration})};
 
+	% Add a constraint on the duration here
+	int_out.constraints{end+1} = traj_create_constraint('Nonneg Duration', sym_duration, '>=', 0);
+	int_out.constraints{end}.fcn = matlabFunction(int_out.constraints{end}.fcn, 'vars', ...
+		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+
 	% Clean up the symbolic variables
 	disp('		Cleaning up symbolic variables')
 	syms b e i s n t clear
@@ -505,13 +507,11 @@ function phase = gen_int_dircol_1(phase)
 		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
 	phase.interval.funcs.states       = matlabFunction(sym_end_params, 'vars', ...
 		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+	% There is one input per interval
+	phase.interval.funcs.inputs       = matlabFunction(sym_int_params, 'vars', ...
+		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
 
 	% Clean up our symbolic variables
 	disp('		Cleaning up interval symbolic variables')
 	syms b e i s n t clear
-end
-
-% This makes the duration function work for the whole phase, not each individual interval
-function phase = phase_fix_duration(phase)
-	
 end

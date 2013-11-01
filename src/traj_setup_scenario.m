@@ -113,6 +113,8 @@ end
 
 % This function generates the optfcns structure, containing the optimization costs and constraints
 function optfcns = gen_optfcns(scenario)
+	disp('	Generating optimization functions')
+
 	% Initialize as empty, so we can simply append to them.
 	optfcns.constraints = {};
 	optfcns.costs       = {};
