@@ -510,6 +510,9 @@ function phase = gen_int_dircol_1(phase)
 	% There is one input per interval
 	phase.interval.funcs.inputs       = matlabFunction(sym_int_params, 'vars', ...
 		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+	% There is one state derivative per interval
+	phase.interval.funcs.dstates      = matlabFunction((sym_end_params - sym_start_params) ./ sym_duration, 'vars', ...
+		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
 
 	% Clean up our symbolic variables
 	disp('		Cleaning up interval symbolic variables')
