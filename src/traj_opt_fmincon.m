@@ -25,19 +25,19 @@ function scenario = setup_opt_fmincon(scenario)
 
 	% Iterate through the cost functions to generate the objective
 	objective = 0;
-	for iter = scenario.optfcns.costs
-		objective = objective + iter{1}.fcn(opt_params, noopt_params);
+	for iter = 1:numel(scenario.optfcns.costs)
+		objective = objective + scenario.optfcns.costs{iter}.fcn(opt_params, noopt_params);
 	end
 
 	% Iterate through the constraint functions to generate the constraint
 	c   = sym([]);
 	ceq = sym([]);
-	for iter = scenario.optfcns.constraints
+	for iter = 1:numel(scenario.optfcns.constraints)
 		% Switch based on the type of constraint
-		if iter{1}.con_type == '<='
-			c(end+1,:) = iter{1}.fcn(opt_params, noopt_params);
+		if scenario.optfcns.constraints{iter}.con_type == '<='
+			c   = [c;   reshape(scenario.optfcns.constraints{iter}.fcn(opt_params, noopt_params), [], 1)];
 		else
-			ceq(end+1,:) = iter{1}.fcn(opt_params, noopt_params);
+			ceq = [ceq; reshape(scenario.optfcns.constraints{iter}.fcn(opt_params, noopt_params), [], 1)];
 		end
 	end
 
