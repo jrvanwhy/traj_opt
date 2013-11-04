@@ -136,7 +136,7 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 	phase = gen_interval(phase);
 
 	% Generate the phase's interval structure
-	phase.phase_interval = clone_interval(phase.interval, phase.n_intervals);
+	phase.phase_interval = clone_interval(phase.interval, phase.n_intervals, phase);
 
 	% Let the user know when this function terminates
 	disp(['Setup for phase ''' name ''' completed.'])
@@ -144,7 +144,7 @@ end
 
 % This function 'clones' an interval, generating a larger interval that consisting of multiple copies
 % of the input interval combined into one.
-function int_out = clone_interval(int_in, count)
+function int_out = clone_interval(int_in, count, phase)
 	% Informative message for the user
 	disp(['	Cloning interval ''' int_in.name ''' ' num2str(count) ' times.'])
 
@@ -328,6 +328,25 @@ function int_out = clone_interval(int_in, count)
 	int_out.constraints{end+1} = traj_create_constraint('Nonneg Duration', sym_duration, '>=', 0);
 	int_out.constraints{end}.fcn = matlabFunction(int_out.constraints{end}.fcn, 'vars', ...
 		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+
+	% Add on the times for the states, dstates, and inputs
+	% This is specific for each technique.
+	disp('	Adding time representations')
+	switch phase.technique
+		case 'dircol 1'
+			% Put in the starting state
+			int_out.funcs.t_states{:,1} = matlabFunction(sym(0), 'vars', ...
+				{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+			% Iterate through each interval, appending the times
+			for itertime = 1:count
+				int_out.funcs.t_states{:,itertime+1} = matlabFunction(itertime*sym_duration/count, 'vars', ...
+					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+				int_out.funcs.t_inputs{:,itertime}   = matlabFunction((itertime-.5)*sym_duration/count, 'vars', ...
+					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+				int_out.funcs.t_dstates{:,itertime}  = matlabFunction((itertime-.5)*sym_duration/count, 'vars', ...
+					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+			end
+	end
 
 	% Clean up the symbolic variables
 	disp('		Cleaning up symbolic variables')
