@@ -16,5 +16,6 @@ end
 
 % This function generates numerical representations used for analysis of the solution that's been found.
 function scenario = traj_gen_numerical(scenario, noopt_params)
+	disp('	Generating numerical values')
 	scenario = traj_eval_funcs(scenario, scenario.soln, noopt_params, false);
 end
