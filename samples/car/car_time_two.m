@@ -37,9 +37,6 @@ function scenario = car_time_two(n_intervals) % Added phase output for debugging
 	% N is an increasing positive integer.
 	scenario = traj_setup_scenario(@scenario_fcn, phase1, phase2);
 
-	% Change fmincon's settings to not run over the function evaluation or iteration limits.
-	scenario.opt_fmincon.options = optimset('MaxFunEvals', 300000, 'MaxIter', 10000);
-
 	% Run the optimization
 	% This returns the scenario and a success flag (also stored in the scenario)
 	% that is true if it was successful and false otherwise.
