@@ -120,7 +120,7 @@ function optfcns = gen_optfcns(scenario)
 	optfcns.costs       = {};
 
 	% Append scenario function costs and constraints
-	if isfield(scenario.scenfun, 'costs')
+	if numel(scenario.scenfun.costs)
 		optfcns.costs(:,1) = [optfcns.costs scenario.scenfun.costs];
 	end
 	if isfield(scenario.scenfun, 'constraints')

@@ -17,6 +17,11 @@
 % on its context (defined by the larger structure it is encapsulated within).
 
 function constraint = traj_create_constraint(name, lside, type, rside)
+	% Error checking
+	if size(lside) ~= size(rside)
+		error('lside and rside of constraint must have equal sizes')
+	end
+
 	% Generate name and version
 	constraint.version     = traj_version();
 	constraint.struct_type = 'constraint';

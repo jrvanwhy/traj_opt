@@ -392,6 +392,7 @@ function phase = gen_dynsys_fcns(phase, dynsys_fcn)
 	% Initialize dynamic system fields
 	phase.dynsys.constraints = {};
 	phase.dynsys.costs       = {};
+	phase.dynsys.functions   = {};
 
 	% Iterate through the costs and constraints, adding them to phases
 	disp('	Adding costs and constraints to dynamic system representation.')
@@ -423,9 +424,19 @@ function phase = gen_dynsys_fcns(phase, dynsys_fcn)
 
 				% Convert the cost function to an anonymous function with appropriate inputs, then
 				% append it to the costs field
-				output.fcn = matlabFunction(output, 'vars', ...
+				output.fcn = matlabFunction(output.fcn, 'vars', ...
 					{sym_state, sym_input, sym_add_params, sym_noopt_params});
 				phase.dynsys.costs{end+1} = output;
+
+			case 'function'
+				% Let the user know things are happening
+				disp(['		Processing function ''' output.name ''''])
+
+				% Convert to an anonymous function
+				output.fcn = matlabFunction(output.fcn, 'vars', ...
+					{sym_state, sym_input, sym_add_params, sym_noopt_params});
+				% Append it to the dynamic system functions
+				phase.dynsys.functions{end+1} = output;
 
 			otherwise
 				% Spit out an error -- this is not an acceptable structure type
@@ -511,12 +522,27 @@ function phase = gen_int_dircol_1(phase)
 	for iter = 1:numel(phase.dynsys.costs)
 		disp(['			Processing cost ''' phase.dynsys.costs{iter}.name ''''])
 		phase.interval.costs{iter} = phase.dynsys.costs{iter};
-		phase.interval.costs{iter}.fcn = phase.dynsys.costs{iter}.fcn(...
+		phase.interval.costs{iter}.fcn = sym_duration * phase.dynsys.costs{iter}.fcn(...
 			(sym_start_params + sym_end_params)/2, ...
 			sym_int_params, ...
 			sym_shared_params(2:end), ...
 			sym_noopt_params);
 		phase.interval.costs{iter}.fcn = matlabFunction(phase.interval.costs{iter}.fcn, 'vars', ...
+			{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+	end
+
+	% Do the same for the user's functions
+	disp('		Processing user functions into interval functions')
+	for iter = 1:numel(phase.dynsys.functions)
+		disp(['			Processing function ''' phase.dynsys.functions{iter}.name ''''])
+
+		output = phase.dynsys.functions{iter}.fcn(...
+			(sym_start_params + sym_end_params)/2, ...
+			sym_int_params,                        ...
+			sym_shared_params(2:end),              ...
+			sym_noopt_params);
+
+		phase.interval.funcs.(phase.dynsys.functions{iter}.name) = matlabFunction(output, 'vars', ...
 			{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
 	end
 
