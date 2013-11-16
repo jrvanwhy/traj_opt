@@ -11,7 +11,7 @@ end
 % This function does all the setup for an fmincon optimization run (if necessary)
 function scenario = setup_opt_fmincon(scenario)
 	% Exit if this has already been done
-	if isfield(scenario, 'fmincon')
+	if isfield(scenario, 'opt_fmincon')
 		scenario = scenario;
 		return
 	end
