@@ -75,7 +75,7 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 	% This is the input sanity verification section
 	% name should be a character array (string)
 	if ~ischar(name)
-	;	error('name must be empty or a string')
+		error('name must be empty or a string')
 	end
 
 	% dynsys_fcn must be a function handle with a fixed number of arguments and return values
@@ -334,17 +334,41 @@ function int_out = clone_interval(int_in, count, phase)
 	disp('	Adding time representations')
 	switch phase.technique
 		case 'dircol 1'
+			% This is a list of function names that we'll add time representations for
+			fcn_names = fieldnames(int_out.funcs);
+
 			% Put in the starting state
 			int_out.funcs.t_states{:,1} = matlabFunction(sym(0), 'vars', ...
 				{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-			% Iterate through each interval, appending the times
-			for itertime = 1:count
-				int_out.funcs.t_states{:,itertime+1} = matlabFunction(itertime*sym_duration/count, 'vars', ...
-					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-				int_out.funcs.t_inputs{:,itertime}   = matlabFunction((itertime-.5)*sym_duration/count, 'vars', ...
-					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-				int_out.funcs.t_dstates{:,itertime}  = matlabFunction((itertime-.5)*sym_duration/count, 'vars', ...
-					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+
+			% Iterate through each function
+			for iterfcn = 1:numel(fcn_names)
+				disp(['		Processing function ''' fcn_names{iterfcn} ''''])
+
+				% Iterate through each interval, appending the times
+				for itertime = 1:count
+					% Handle the states differently, because they line up differently
+					if strcmp(fcn_names{iterfcn}, 'states')
+						int_out.funcs.t_states{:,itertime+1} = matlabFunction(itertime*sym_duration/count, 'vars', ...
+							{sym_start_params,  ...
+							 sym_end_params,    ...
+							 sym_int_params,    ...
+							 sym_shared_params, ...
+							 sym_noopt_params,  ...
+							 sym_duration});
+					elseif strcmp(fcn_names{iterfcn}, 'duration') % Also handle the duration differently (because it's special)
+						% Don't do anything! The duration is not a function of time (as odd as that sounds).
+					else
+						int_out.funcs.(['t_' fcn_names{iterfcn}]){:,itertime} = matlabFunction(...
+							(itertime-.5)*sym_duration/count, 'vars', ...
+							{sym_start_params,  ...
+							 sym_end_params,    ...
+							 sym_int_params,    ...
+							 sym_shared_params, ...
+							 sym_noopt_params,  ...
+							 sym_duration});
+					end
+				end
 			end
 	end
 
