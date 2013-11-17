@@ -15,6 +15,7 @@ function results = benchmark(cutoff_time)
 	results.scenarios  = {};
 	results.opt1s      = {};
 	results.opt2s      = {};
+	results.fvals      = [];
 
 	% Iterate through the intervals until we reach the cutoff time
 	while sum(results.t_phase) + sum(results.t_scenario) + sum(results.t_opt1) + sum(results.t_opt2) < cutoff_time
@@ -36,11 +37,13 @@ function results = benchmark(cutoff_time)
 		tic;
 		results.opt1s{1,end+1} = traj_optimize(results.scenarios{end});
 		results.t_opt1(1,end+1) = toc;
+		results.fvals(1,end+1)  = results.opt1s{1,end}.opt_fmincon.fvals(end);
 
 		% And run it again, to count only numerical time
 		tic;
 		results.opt2s{1,end+1} = traj_optimize(results.opt1s{end});
 		results.t_opt2(1,end+1) = toc;
+		results.fvals(2,end)  = results.opt2s{1,end}.opt_fmincon.fvals(end);
 
 		% Increment current interval count
 		cur_intrvls = cur_intrvls + 1;
