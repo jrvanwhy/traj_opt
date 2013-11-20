@@ -129,266 +129,18 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 	phase.names.noopt_params = noopt_params(:);
 	phase.names.state        = state(:);
 
-	% Generate dynamic system function-related functions in phase
-	phase = gen_dynsys_fcns(phase, dynsys_fcn);
-
-	% Generate the interval structure
-	phase = gen_interval(phase);
-
-	% Generate the phase's interval structure
-	phase.phase_interval = clone_interval(phase.interval, phase.n_intervals, phase);
+	% Do setup (currently, we only have trapezoidal direct collocation)
+	phase = setup_dircol_trapz(phase, dynsys_fcn);
 
 	% Let the user know when this function terminates
 	disp(['Setup for phase ''' name ''' completed.'])
 end
 
-% This function 'clones' an interval, generating a larger interval that consisting of multiple copies
-% of the input interval combined into one.
-function int_out = clone_interval(int_in, count, phase)
-	% Informative message for the user
-	disp(['	Cloning interval ''' int_in.name ''' ' num2str(count) ' times.'])
-
-	% Copy name
-	int_out.name = int_in.name;
-
-	% Define starting and ending parameters (they are simply numbered versions of the input interval's
-	% starting and ending parameters)
-	for iter = 1:numel(int_in.start_params)
-		int_out.start_params{iter,1} = [int_in.start_params{iter} '/1'];
-	end
-	for iter = 1:numel(int_in.end_params)
-		int_out.end_params{iter,1} = [int_in.end_params{iter} '/' num2str(count+1)];
-	end
-
-	% The shared parameters are simply copied over, as are the noopt parameters
-	int_out.shared_params = int_in.shared_params(:);
-	int_out.noopt_params  = int_in.noopt_params(:);
-
-	% The internal states become interior params; the inputs stay interior params but are duplicated.
-	% We'll insert the inputs first, then the states
-	int_out.int_params = [];
-	for iter1 = 1:count
-		% Append numbers to the inputs
-		for iter2 = 1:numel(int_in.int_params)
-			int_out.int_params{end+1,1} = [int_in.int_params{iter2} '/' num2str(iter1)];
-		end
-	end
-	for iter1 = 2:count
-		% Append numbers to each sub-state
-		for iter2 = 1:numel(int_in.end_params)
-			int_out.int_params{end+1,1} = [int_in.end_params{iter2} '/' num2str(iter1)];
-		end
-	end
-
-	% Generate symbolic variables for each input for the new interval's functions
-	sym_start_params  = sym('b', size(int_out.start_params));
-	sym_end_params    = sym('e', size(int_out.end_params));
-	sym_int_params    = sym('i', size(int_out.int_params));
-	sym_shared_params = sym('s', size(int_out.shared_params));
-	sym_noopt_params  = sym('n', size(int_out.noopt_params));
-	sym_duration      = sym('t', 'real');
-
-	% Create sub-interval input representations
-	disp('		Creating sub-interval input representations')
-	subint_start_params = [sym_start_params, ...
-		reshape(sym_int_params(count*numel(int_in.int_params)+1:...
-			count*(numel(int_in.int_params)+numel(int_in.end_params))-numel(int_in.end_params)), ...
-			numel(int_in.end_params), count-1)];
-	subint_end_params = [subint_start_params(:,2:end), sym_end_params];
-	subint_int_params = reshape(sym_int_params(1:count*numel(int_in.int_params)), numel(int_in.int_params), count);
-
-	% Clone the constraints if there are any
-	if isfield(int_in, 'constraints')
-		disp('		Cloning constraints')
-		int_out.constraints = [];
-		for iter1 = 1:numel(int_in.constraints)
-			disp(['			Processing constraint ''' int_in.constraints{iter1}.name ''''])
-			for iter2 = 1:count
-				% Copy over the basic constraint structure
-				int_out.constraints{end+1} = int_in.constraints{iter1};
-
-				% Append a number to the constraint's name
-				int_out.constraints{end}.name = [int_in.constraints{iter1}.name '/' num2str(iter2)];
-
-				% Update the constraint function to reflect the new function inputs
-				int_out.constraints{end}.fcn = int_in.constraints{iter1}.fcn(...
-					subint_start_params(:,iter2), ...
-					subint_end_params(:,iter2),   ...
-					subint_int_params(:,iter2),   ...
-					sym_shared_params,            ...
-					sym_noopt_params,             ...
-					sym_duration/count);
-
-				% Convert the function to a symbolic function
-				int_out.constraints{end}.fcn = matlabFunction(int_out.constraints{end}.fcn, 'vars', ...
-					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-			end
-		end
-	end
-
-	% Clone the costs, if any exist
-	if isfield(int_in, 'costs')
-		disp('		Cloning costs')
-		int_out.costs = [];
-		for iter1 = 1:numel(int_in.costs)
-			disp(['			Processing cost ''' int_in.costs{iter1}.name ''''])
-			for iter2 = 1:count
-				% Copy over the basic cost structure
-				int_out.costs{end+1} = int_in.costs{iter1};
-
-				% Append a number to the cost's name
-				int_out.costs{end}.name = [int_in.costs{iter1}.name '/' num2str(iter2)];
-
-				% Update the cost function to reflect the new function inputs
-				int_out.costs{end}.fcn = int_in.costs{iter1}.fcn(...
-					subint_start_params(:,iter2), ...
-					subint_end_params(:,iter2),   ...
-					subint_int_params(:,iter2),   ...
-					sym_shared_params,            ...
-					sym_noopt_params,             ...
-					sym_duration/count);
-
-				% Convert the function to a symbolic function
-				int_out.costs{end}.fcn = matlabFunction(int_out.costs{end}.fcn, 'vars', ...
-					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-			end
-		end
-	end
-
-	% Iterate through starting functions, generating them with the correct parameters
-	if isfield(int_in, 'start_funcs')
-		% The list of function names
-		fcn_names = fieldnames(int_in.start_funcs);
-
-		% Iterate through them
-		for iter = 1:numel(fcn_names)
-			disp(['		Processing starting function ''' fcn_names{iter} ''''])
-
-			% Call it with the correct parameters first and simplify
-			int_out.funcs.(fcn_names{iter}){1,1} = simplify(int_in.start_funcs.(fcn_names{iter})(...
-				subint_start_params(:,1), ...
-				subint_end_params(:,1),   ...
-				subint_int_params(:,1),   ...
-				sym_shared_params,        ...
-				sym_noopt_params,         ...
-				sym_duration/count));
-		end
-	end
-
-	% Iterate through the additional functions, generating new ones that that return their value for each sub-interval
-	if isfield(int_in, 'funcs')
-		% The list of function names
-		fcn_names = fieldnames(int_in.funcs);
-
-		for iter = 1:numel(fcn_names)
-			disp(['		Processing function ''' fcn_names{iter} ''''])
-
-			% If the output function is empty, initialize it
-			if (~isfield(int_out.funcs, fcn_names{iter}))
-				int_out.funcs.(fcn_names{iter}) = {};
-			end
-
-			% Iterate through each sub-interval, creating a new function for each sub-interval
-			for iter2 = 1:count
-				% Create the symbolic form of the new function
-				int_out.funcs.(fcn_names{iter}){1,end+1} = simplify(int_in.funcs.(fcn_names{iter})(...
-					subint_start_params(:,iter2), ...
-					subint_end_params(:,iter2),   ...
-					subint_int_params(:,iter2),   ...
-					sym_shared_params,            ...
-					sym_noopt_params,             ...
-					sym_duration/count));
-			end
-		end
-	end
-
-	% Convert additional functions to anonymous functions
-	if isfield(int_out, 'funcs')
-		% Iterate through each function
-		fcn_names = fieldnames(int_out.funcs);
-
-		for iter = 1:numel(fcn_names)
-			disp(['		Converting function ''' fcn_names{iter} ''''])
-
-			% Iterate through each element, converting one-by-one for performance.
-			for iter2 = 1:numel(int_out.funcs.(fcn_names{iter}))
-				% Do the conversion
-				int_out.funcs.(fcn_names{iter}){iter2} = matlabFunction(...
-					int_out.funcs.(fcn_names{iter}){iter2}, 'vars', ...
-					{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-			end
-		end
-	end
-
-	% Add the duration function, so it returns the duration for the whole phase, not for each interval.
-	int_out.funcs.duration = {matlabFunction(sym_duration, 'vars', ...
-		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration})};
-
-	% Add a constraint on the duration here
-	int_out.constraints{end+1} = traj_create_constraint('Nonneg Duration', sym_duration, '>=', 0);
-	int_out.constraints{end}.fcn = matlabFunction(int_out.constraints{end}.fcn, 'vars', ...
-		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-
-	% Add on the times for the states, dstates, and inputs
-	% This is specific for each technique.
-	disp('	Adding time representations')
-	switch phase.technique
-		case 'dircol 1'
-			% This is a list of function names that we'll add time representations for
-			fcn_names = fieldnames(int_out.funcs);
-
-			% Put in the starting state
-			int_out.funcs.t_states{:,1} = matlabFunction(sym(0), 'vars', ...
-				{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-
-			% Iterate through each function
-			for iterfcn = 1:numel(fcn_names)
-				disp(['		Processing function ''' fcn_names{iterfcn} ''''])
-
-				% Iterate through each interval, appending the times
-				for itertime = 1:count
-					% Handle the states differently, because they line up differently
-					if strcmp(fcn_names{iterfcn}, 'states')
-						int_out.funcs.t_states{:,itertime+1} = matlabFunction(itertime*sym_duration/count, 'vars', ...
-							{sym_start_params,  ...
-							 sym_end_params,    ...
-							 sym_int_params,    ...
-							 sym_shared_params, ...
-							 sym_noopt_params,  ...
-							 sym_duration});
-					elseif strcmp(fcn_names{iterfcn}, 'duration') % Also handle the duration differently (because it's special)
-						% Don't do anything! The duration is not a function of time (as odd as that sounds).
-					else
-						int_out.funcs.(['t_' fcn_names{iterfcn}]){:,itertime} = matlabFunction(...
-							(itertime-.5)*sym_duration/count, 'vars', ...
-							{sym_start_params,  ...
-							 sym_end_params,    ...
-							 sym_int_params,    ...
-							 sym_shared_params, ...
-							 sym_noopt_params,  ...
-							 sym_duration});
-					end
-				end
-			end
-	end
-
-	% Clean up the symbolic variables
-	disp('		Cleaning up symbolic variables')
-	syms b e i s n t clear
-end
-
-% This function generates anonymous functions representing the dynamic system function
-% and places them into phase
-function phase = gen_dynsys_fcns(phase, dynsys_fcn)
+% This function calls the dynamic system function and places its outputs into the appropriate
+% locations (as symbolic expressions). It needs symbolic samples for the state, input, additional parameters, and non-optimized parameters.
+function phase = call_dynsys_fcn(phase, dynsys_fcn, sym_state, sym_input, sym_add_params, sym_noopt_params)
 	% Diagnostic message to inform the user of the framework's progress
-	disp('	Generating dynamic system function representations')
-
-	% Create symbolic variables representing the various parameters to the dynamic system function
-	% We use these symbolic variables to create representations of the dynamic system functions as anonymous function.
-	sym_state        = sym('x', [numel(phase.names.state)        1]);
-	sym_input        = sym('u', [numel(phase.names.input)        1]);
-	sym_add_params   = sym('a', [numel(phase.names.add_params)   1]);
-	sym_noopt_params = sym('n', [numel(phase.names.noopt_params) 1]);
+	disp('		Processing dynamic system function')
 
 	% Create a cell array with the parameters to the dynamic system function. This allows us to call it with the
 	% correct number of arguments.
@@ -407,11 +159,12 @@ function phase = gen_dynsys_fcns(phase, dynsys_fcn)
 	end
 
 	% Call the dynamic system function, retrieving all outputs
-	[dynsys_dx,dynsys_varouts{1,1:nargout(dynsys_fcn)-1}] = dynsys_fcn(dynsys_args{:});
+	disp('			Calling dynamic system function')
+	[phase.dynsys.dx,dynsys_varouts{1,1:nargout(dynsys_fcn)-1}] = dynsys_fcn(dynsys_args{:});
 
-	% Set up phases.dynsys.dx, simplifying it in the process for performance
-	disp('	Generating dynamics ODE function')
-	phase.dynsys.dx = matlabFunction(simplify(dynsys_dx), 'vars', {sym_state, sym_input, sym_add_params, sym_noopt_params});
+	% Create the dx function representation
+	disp('			Creating dx function representation')
+	phase.dynsys.dx = matlabFunction(simplify(phase.dynsys.dx), 'vars', {sym_state, sym_input, sym_add_params, sym_noopt_params});
 
 	% Initialize dynamic system fields
 	phase.dynsys.constraints = {};
@@ -419,7 +172,7 @@ function phase = gen_dynsys_fcns(phase, dynsys_fcn)
 	phase.dynsys.functions   = {};
 
 	% Iterate through the costs and constraints, adding them to phases
-	disp('	Adding costs and constraints to dynamic system representation.')
+	disp('			Adding costs and constraints to dynamic system representation.')
 	for idx = 1:numel(dynsys_varouts)
 		% This is the structure returned in this output
 		output = dynsys_varouts{idx};
@@ -434,31 +187,25 @@ function phase = gen_dynsys_fcns(phase, dynsys_fcn)
 		switch output.struct_type
 			case 'constraint'
 				% Let the user know things are happening
-				disp(['		Processing constraint ''' output.name ''''])
+				disp(['				Processing constraint ''' output.name ''''])
 
 				% Convert the constraint function to an anonymous function, then append it to the
 				% constraints field.
-				output.fcn = matlabFunction(simplify(output.fcn), 'vars', ...
-					{sym_state, sym_input, sym_add_params, sym_noopt_params});
 				phase.dynsys.constraints = [phase.dynsys.constraints {output}];
 
 			case 'cost'
 				% Progress message so the user doesn't think it's frozen
-				disp(['		Processing cost ''' output.name ''''])
+				disp(['				Processing cost ''' output.name ''''])
 
 				% Convert the cost function to an anonymous function with appropriate inputs, then
 				% append it to the costs field
-				output.fcn = matlabFunction(output.fcn, 'vars', ...
-					{sym_state, sym_input, sym_add_params, sym_noopt_params});
 				phase.dynsys.costs{end+1} = output;
 
 			case 'function'
 				% Let the user know things are happening
-				disp(['		Processing function ''' output.name ''''])
+				disp(['				Processing function ''' output.name ''''])
 
 				% Convert to an anonymous function
-				output.fcn = matlabFunction(output.fcn, 'vars', ...
-					{sym_state, sym_input, sym_add_params, sym_noopt_params});
 				% Append it to the dynamic system functions
 				phase.dynsys.functions{end+1} = output;
 
@@ -467,123 +214,147 @@ function phase = gen_dynsys_fcns(phase, dynsys_fcn)
 				error(['Structure type ''' output.struct_type ''' not a valid return type for the dynamic system function.'])
 		end
 	end
-
-	% Clean up our symbolic variables
-	syms x u a n clear
 end
 
-% This generates the interval structure for each step in the dynamic simulation of this phase
-function phase = gen_interval(phase)
-	% Currently, only one trajectory optimization technique ('dircol 1') is supported.
-	phase.technique = 'dircol 1';
+% This function sets up for trapezoidal direct collocation
+function phase = setup_dircol_trapz(phase, dynsys_fcn)
+	disp('	Setting up trapezoidal ODE solver')
 
-	% Go ahead and call the specific technique's interval generation function.
-	phase = gen_int_dircol_1(phase);
-end
+	% Set up example states, inputs, and duration
+	disp('		Creating sample symbolic values')
+	sym_states       = sym('x', [numel(phase.names.state) 2]);
+	sym_inputs       = sym('u', [numel(phase.names.input) 2]);
+	sym_duration     = sym('d', 'real');
 
-% This generates the interval for a basic first-order direct collocation optimization.
-% This treats the state as piecewise linear, linearly interpolating it between the state inputs.
-% It then samples the state at the midpoint of the interval, evaluates the dynamics at that location,
-% then compares that with the state's derivative (according to its slope) and constrains the two derivative estimates
-% to match. Simple midpoint integration is used to integrate the cost function.
-function phase = gen_int_dircol_1(phase)
-	% Informative message for the user
-	disp('	Optimizing using 1st-order direct collocation strategy.')
+	% Set up dt
+	sym_dt = sym_duration/phase.n_intervals;
 
-	% The shared parameters are just the add_params specified by the user; similarly,
-	% the noopt_params are just the user-specified noopt params.
-	phase.interval.shared_params = [phase.names.add_params];
-	phase.interval.noopt_params  = phase.names.noopt_params;
+	% Generate dynamic system function expressions.
+	phase = call_dynsys_fcn(phase, dynsys_fcn, sym_states(:,1), sym_inputs(:,1), sym([]), sym([]));
 
-	% The interval's name is the phase's name
-	phase.interval.name = phase.names.phase;
+	% Generate parameter maps
+	disp('		Generating interval parameter maps')
+	states_map         = zeros(size(sym_states, 1), phase.n_intervals+1);
+	inputs_map         = zeros(size(sym_inputs, 1), phase.n_intervals+1);
+	states_map(:)      = 1:numel(states_map);
+	param_count        = max(states_map);
+	inputs_map(:)      = param_count+1:param_count+numel(inputs_map);
+	param_count        = max(inputs_map);
+	duration_map       = param_count+1;
 
-	% The start and end params are just the state
-	phase.interval.start_params = phase.names.state;
-	phase.interval.end_params   = phase.names.state;
+	% Generate costs
+	disp('		Creating phase cost functions')
+	phase.costs = {};
+	for itercost = 1:numel(phase.dynsys.costs)
+		cost = phase.dynsys.costs{itercost};
+		disp(['			Processing cost ''' + cost.name ''''])
 
-	% The only internal parameters are the inputs
-	phase.interval.int_params = phase.names.input;
+		% Use trapezoidal integration to evaluate the cost
+		cost = sym_dt * (...
+			cost.fcn(sym_states(:,1), sym_inputs(:,1), [], []) + ...
+			cost.fcn(sym_states(:,2), sym_inputs(:,2), [], [])) / 2;
 
-	% Create symbolic representations of the various parameters
-	sym_start_params  = sym('b', size(phase.interval.start_params));
-	sym_end_params    = sym('e', size(phase.interval.end_params));
-	sym_int_params    = sym('i', size(phase.interval.int_params));
-	sym_shared_params = sym('s', size(phase.interval.shared_params));
-	sym_noopt_params  = sym('n', size(phase.interval.noopt_params));
-	sym_duration      = sym('t', 'real');
+		% Create anonymous function
+		cost.fcn = matlabFunction(cost.fcn, 'vars', ...
+			{[ sym_states(:,1)
+			   sym_states(:,2)
+			   sym_inputs(:,1)
+			   sym_inputs(:,2)
+			   sym_duration ]});
 
-	% Generate the collocation constraint. Note that I've multiplied both sides by the duration of the interval,
-	% so as to avoid dividing by the duration in the constraint definition.
+		% Generate parameter map
+		cost.param_map = ...
+			[ states_map(:,1:end-1)
+			  states_map(:,2:end)
+			  inputs_map(:,1:end-1)
+			  inputs_map(:,2:end)
+			  duration_map*zeros(1,phase.n_intervals) ];
+
+		% Copy cost over to the phase structure
+		phase.costs{end+1} = cost;
+	end
+
+	% Generate collocation constraint
 	disp('		Creating collocation constraint')
-	phase.interval.constraints{1} = traj_create_constraint('collocation', ...
-		sym_end_params - sym_start_params, '=', ...
-		phase.dynsys.dx((sym_start_params + sym_end_params)/2, sym_int_params, ...
-			sym_shared_params, sym_noopt_params) * sym_duration);
+	colloc_con = traj_create_constraint('collocation', ...
+		2*(sym_states(:,2) - sym_states(:,1)), '=', sym_dt * (...
+		phase.dynsys.dx(sym_states(:,1), sym_inputs(:,1), [], []) + ...
+		phase.dynsys.dx(sym_states(:,2), sym_inputs(:,2), [], [])));
+	colloc_con.fcn = matlabFunction(colloc_con.fcn, 'vars', ...
+		{[ sym_states(:,1)
+		   sym_states(:,2)
+		   sym_inputs(:,1)
+		   sym_inputs(:,2)
+		   sym_duration ]});
+	colloc_con.param_map = ...
+		[ states_map(:,1:end-1)
+		  states_map(:,2:end)
+		  inputs_map(:,1:end-1)
+		  inputs_map(:,2:end)
+		  duration_map*zeros(1,phase.n_intervals) ];
+	phase.constraints{1} = colloc_con;
 
-	% Convert the user's constraints to the interval's function form
-	disp('		Converting user-supplied constraints to the interval''s function form')
-	for iter = 1:numel(phase.dynsys.constraints)
-		disp(['			Processing constraint ''' phase.dynsys.constraints{iter}.name ''''])
-		phase.interval.constraints{iter+1}     = phase.dynsys.constraints{iter};
-		phase.interval.constraints{iter+1}.fcn = phase.dynsys.constraints{iter}.fcn(...
-			(sym_start_params + sym_end_params)/2, ...
-			sym_int_params, ...
-			sym_shared_params, ...
-			sym_noopt_params);
+	% Handle the rest of the constraints
+	disp('		Processing user-specified phase constraint functions')
+	for itercon = 1:numel(phase.dynsys.constraints)
+		con = phase.dynsys.constraints{itercon};
+		disp(['			Processing constraint ''' con.name ''''])
+
+		% Create anonymous function
+		con.fcn = matlabFunction(con.fcn, 'vars', ...
+			{[ sym_states(:,1)
+			   sym_inputs(:,1) ]});
+
+		% Generate parameter map
+		con.param_map = ...
+			[ states_map
+			  inputs_map ];
+
+		% Copy constraint over
+		phase.constraints{end+1} = con;
 	end
 
-	% Convert all constraints to function handles
-	disp('		Converting interval constraints to anonymous functions')
-	for iter = 1:numel(phase.interval.constraints)
-		disp(['			Processing constraint ''' phase.interval.constraints{iter}.name ''''])
-		phase.interval.constraints{iter}.fcn = matlabFunction(phase.interval.constraints{iter}.fcn, 'vars', ...
-			{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
+	% Define a few useful functions.
+	% For simplicity, we inject them directly into the outputs from the dynamic system function
+	disp('		Processing functions')
+	functions = phase.dynsys.functions;
+	functions{end+1} = traj_create_function('states', sym_states(:,1));
+	functions{end+1} = traj_create_function('inputs', sym_inputs(:,1));
+	functions{end+1} = traj_create_function('dstates', phase.dynsys.dx(sym_states(:,1), sym_inputs(:,1), [], []));
+
+	% Handle the dynamic system functions (plus our own ones above)
+	phase.functions = {};
+	for iterfcn = 1:numel(functions)
+		fcn = functions{iterfcn};
+		disp(['			Processing function ''' fcn.name ''''])
+
+		% Make it an anonymous function
+		fcn.fcn = matlabFunction(fcn.fcn, 'vars', ...
+			{[ sym_states(:,1)
+			   sym_inputs(:,1) ]});
+
+		% Generate parameter map
+		fcn.param_map = ...
+			[ states_map
+			  inputs_map ];
+
+		% Copy function over
+		phase.functions{end+1} = fcn;
+
+		% Create corresponding time function
+		time_fcn     = traj_create_function(['t_' fcn.name], sym_duration*linspace(0, 1, phase.n_intervals+1));
+		time_fcn.fcn = matlabFunction(time_fcn.fcn, 'vars', {sym_duration});
+		time_fcn.param_map = duration_map;
+		phase.functions{end+1} = time_fcn;
 	end
 
-	% Like the constraints, convert the user's costs to the interval's function form then into function handles.
-	disp('		Processing user costs into interval constraints')
-	for iter = 1:numel(phase.dynsys.costs)
-		disp(['			Processing cost ''' phase.dynsys.costs{iter}.name ''''])
-		phase.interval.costs{iter} = phase.dynsys.costs{iter};
-		phase.interval.costs{iter}.fcn = sym_duration * phase.dynsys.costs{iter}.fcn(...
-			(sym_start_params + sym_end_params)/2, ...
-			sym_int_params, ...
-			sym_shared_params(2:end), ...
-			sym_noopt_params);
-		phase.interval.costs{iter}.fcn = matlabFunction(phase.interval.costs{iter}.fcn, 'vars', ...
-			{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-	end
+	% Add in the duration function (it's special because it's not per-interval).
+	disp('			Processing function ''duration''')
+	duration_fcn           = traj_create_function('duration', sym_duration);
+	duration_fcn.fcn       = matlabFunction(duration_fcn.fcn, 'vars', sym_duration);
+	duration_fcn.param_map = duration_map;
+	phase.functions{end+1} = duration_fcn;
 
-	% Do the same for the user's functions
-	disp('		Processing user functions into interval functions')
-	for iter = 1:numel(phase.dynsys.functions)
-		disp(['			Processing function ''' phase.dynsys.functions{iter}.name ''''])
-
-		output = phase.dynsys.functions{iter}.fcn(...
-			(sym_start_params + sym_end_params)/2, ...
-			sym_int_params,                        ...
-			sym_shared_params(2:end),              ...
-			sym_noopt_params);
-
-		phase.interval.funcs.(phase.dynsys.functions{iter}.name) = matlabFunction(output, 'vars', ...
-			{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-	end
-
-	% Put in useful functions
-	% There is one more state than there are intervals...
-	phase.interval.start_funcs.states = matlabFunction(sym_start_params, 'vars', ...
-		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-	phase.interval.funcs.states       = matlabFunction(sym_end_params, 'vars', ...
-		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-	% There is one input per interval
-	phase.interval.funcs.inputs       = matlabFunction(sym_int_params, 'vars', ...
-		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-	% There is one state derivative per interval
-	phase.interval.funcs.dstates      = matlabFunction((sym_end_params - sym_start_params) ./ sym_duration, 'vars', ...
-		{sym_start_params, sym_end_params, sym_int_params, sym_shared_params, sym_noopt_params, sym_duration});
-
-	% Clean up our symbolic variables
-	disp('		Cleaning up interval symbolic variables')
-	syms b e i s n t clear
+	% Clean up symbolic variables
+	syms x u d clear
 end
