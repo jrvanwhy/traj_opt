@@ -322,6 +322,12 @@ function phase = setup_dircol_trapz(phase, dynsys_fcn)
 	functions{end+1} = traj_create_function('inputs', sym_inputs(:,1));
 	functions{end+1} = traj_create_function('dstates', phase.dynsys.dx(sym_states(:,1), sym_inputs(:,1), [], []));
 
+	% Generate time function (used for all the above functions and all user-defined functions)
+	disp('			Generating time function')
+	time_fcn           = traj_create_function('time', sym_duration*linspace(0, 1, phase.n_intervals+1));
+	time_fcn.fcn       = matlabFunction(time_fcn.fcn, 'vars', {sym_duration});
+	time_fcn.param_map = duration_map;
+
 	% Handle the dynamic system functions (plus our own ones above)
 	phase.functions = {};
 	for iterfcn = 1:numel(functions)
@@ -341,11 +347,9 @@ function phase = setup_dircol_trapz(phase, dynsys_fcn)
 		% Copy function over
 		phase.functions{end+1} = fcn;
 
-		% Create corresponding time function
-		time_fcn     = traj_create_function(['t_' fcn.name], sym_duration*linspace(0, 1, phase.n_intervals+1));
-		time_fcn.fcn = matlabFunction(time_fcn.fcn, 'vars', {sym_duration});
-		time_fcn.param_map = duration_map;
+		% Add corresponding time function
 		phase.functions{end+1} = time_fcn;
+		phase.functions{end}.name = ['t_' fcn.name];
 	end
 
 	% Add in the duration function (it's special because it's not per-interval).
