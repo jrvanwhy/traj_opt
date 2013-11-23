@@ -45,7 +45,8 @@ function scenario = car_time_two(n_intervals)
 	% Check if it failed -- if so, run the constraint feasibility analyzer
 	if ~success
 		% It failed -- run the analyzer
-		traj_analyze_feasibility(scenario);
+		% Commented out until analyzer has been written
+		%traj_analyze_feasibility(scenario);
 	end
 end
 
@@ -68,12 +69,12 @@ end
 % and costs upon the scenario.
 function [cost,start_state_con,mid_state_con1,mid_state_con2,end_state_con] = scenario_fcn(scenario)
 	% Generate a cost (the only cost) proportional to the duration of the trajectory.
-	cost = traj_create_cost('Duration', scenario.phases(1).duration + scenario.phases(2).duration);
+	cost = traj_create_cost('Duration', scenario.phases{1}.duration + scenario.phases{2}.duration);
 
 	% Constrain the starting state to be at the origin and the ending state to be
 	% a stationary car at position 1
-	start_state_con = traj_create_constraint('Starting state', scenario.phases(1).states(:,1),   '=', [0; 0]);
-	mid_state_con1  = traj_create_constraint('Mid state1',     scenario.phases(1).states(:,end), '=', [1; 0]);
-	mid_state_con2  = traj_create_constraint('Mid state2',     scenario.phases(2).states(:,1),   '=', [1; 0]);
-	end_state_con   = traj_create_constraint('Ending state',   scenario.phases(2).states(:,end), '=', [0; 0]);
+	start_state_con = traj_create_constraint('Starting state', scenario.phases{1}.states(:,1),   '=', [0; 0]);
+	mid_state_con1  = traj_create_constraint('Mid state1',     scenario.phases{1}.states(:,end), '=', [1; 0]);
+	mid_state_con2  = traj_create_constraint('Mid state2',     scenario.phases{2}.states(:,1),   '=', [1; 0]);
+	end_state_con   = traj_create_constraint('Ending state',   scenario.phases{2}.states(:,end), '=', [0; 0]);
 end

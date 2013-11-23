@@ -2,13 +2,6 @@
 % It returns a scenario ready for optimization (or generation
 % of a fast optimization function, if desired).
 
-% Scenario structure setup:
-% interval    A large interval structure containing all the phases.
-% name        This scenario's name. Blank if not specified by the user.
-% phases      An array of the phase structures in this scenario
-% version     The version of the optimizer that generated this scenario
-% struct_type The type of this structure -- always 'scenario'
-
 function scenario = traj_setup_scenario(varargin)
 	disp('Initializing scenario structure')
 
@@ -75,25 +68,156 @@ function scenario = traj_setup_scenario(varargin)
 	% Do all the heavy processing on the phases
 	scenario = process_phases(scenario);
 
-	% Call and process data from the scenario function.
-	scenario = process_scenario_fcn(scenario, scenario_fcn);
-
 	% Generate the final objecttive and constraint functions
-	scenario.optfcns = gen_optfcns(scenario);
+	scenario = gen_optfcns(scenario, scenario_fcn);
 end
 
 % This function adds a phase to the given scenario
 function scenario = add_phase(scenario, phase)
 	% Append to the phases list (creating it if necessary)
 	if isfield(scenario, 'phases')
-		scenario.phases(end+1) = phase;
+		scenario.phases{end+1} = phase;
 	else
-		scenario.phases(1) = phase;
+		scenario.phases{1} = phase;
+	end
+end
+
+% This does the remainder of the necessary setup for optimization
+function scenario = gen_optfcns(scenario, scenario_fcn)
+	% Set parameter count
+	scenario.n_params = scenario.param_map(2,end);
+
+	disp('	Creating symbolic optimization parameters')
+	opt_params = sym('x', [scenario.n_params 1]);
+
+	% Add on remaining costs and constraints
+	scenario = process_scenario_fcn(scenario, scenario_fcn, opt_params);
+
+	disp('	Creating final cost expression')
+	cost_expr = sym(0);
+	% Iterate through the phases to sum costs
+	for iter_phase = 1:numel(scenario.phases)
+		phase = scenario.phases{iter_phase};
+		disp(['		Adding costs from phase ''' phase.names.phase ''''])
+		phase_params = opt_params(scenario.param_map(1,iter_phase):scenario.param_map(2,iter_phase));
+
+		cost_expr = cost_expr + phase.cost(phase_params);
+	end
+	% Iterate through the scenario function costs
+	for iter_scen_cost = 1:numel(scenario.scenfun.costs)
+		cost = scenario.scenfun.costs{iter_scen_cost};
+		disp(['		Adding cost ''' cost.name ''''])
+
+		cost_expr = cost_expr + cost.fcn(opt_params);
+	end
+	disp('	Simplifying final cost')
+	cost_expr = simplify(cost_expr);
+	disp('	Converting final cost to anonymous function')
+	scenario.optfcns.cost = matlabFunction(cost_expr, 'vars', {opt_params});
+	disp('	Creating cost gradient expression')
+	gcost_expr = jacobian(cost_expr, opt_params).';
+	disp('	Converting cost gradient to anonymous function')
+	scenario.optfcns.gcost = matlabFunction(gcost_expr, 'vars', {opt_params});
+
+	disp('	Creating final constraint expressions')
+	c_expr                  = sym([]);
+	ceq_expr                = sym([]);
+	gc_s_expr               = sym([]);
+	gceq_s_expr             = sym([]);
+	scenario.optfcns.gc.i   = [];
+	scenario.optfcns.gc.j   = [];
+	scenario.optfcns.gc.m   = 0;
+	scenario.optfcns.gc.n   = 0;
+	scenario.optfcns.gceq.i = [];
+	scenario.optfcns.gceq.j = [];
+	scenario.optfcns.gceq.m = 0;
+	scenario.optfcns.gceq.n = 0;
+	% Iterate through the phases, processing their constraints
+	for iter_phase = 1:numel(scenario.phases)
+		phase = scenario.phases{iter_phase};
+		disp(['		Adding constraints from phase ''' phase.names.phase ''''])
+		phase_params = opt_params(scenario.param_map(1,iter_phase):scenario.param_map(2,iter_phase));
+
+		c_expr                  = [c_expr;                   phase.c(phase_params)               ];
+		ceq_expr                = [ceq_expr;                 phase.ceq(phase_params)             ];
+		gc_s_expr               = [gc_s_expr;                phase.gc.s(phase_params)            ];
+		gceq_s_expr             = [gceq_s_expr;              phase.gceq.s(phase_params)          ];
+		scenario.optfcns.gc.i   = [scenario.optfcns.gc.i;    phase.gc.i+scenario.optfcns.gc.m    ];
+		scenario.optfcns.gc.j   = [scenario.optfcns.gc.j;    phase.gc.j+scenario.optfcns.gc.n    ];
+		scenario.optfcns.gc.m   =  scenario.optfcns.gc.m   + phase.gc.m;
+		scenario.optfcns.gc.n   =  scenario.optfcns.gc.n   + phase.gc.n;
+		scenario.optfcns.gceq.i = [scenario.optfcns.gceq.i;  phase.gceq.i+scenario.optfcns.gceq.m];
+		scenario.optfcns.gceq.j = [scenario.optfcns.gceq.j;  phase.gceq.j+scenario.optfcns.gceq.n];
+		scenario.optfcns.gceq.m =  scenario.optfcns.gceq.m + phase.gceq.m;
+		scenario.optfcns.gceq.n =  scenario.optfcns.gceq.n + phase.gceq.n;
+	end
+	% Iterate through scenario function constraints
+	for iter_scen_con = 1:numel(scenario.scenfun.constraints)
+		con = scenario.scenfun.constraints{iter_scen_con};
+		disp(['		Adding constraint ''' con.name ''''])
+
+		con_expr                    = con.fcn(opt_params);
+		gcon_expr                   = jacobian(con_expr, opt_params).';
+		gcon_n                      = size(gcon_expr, 2);
+		[gcon_i,gcon_j,gcon_s_expr] = find(gcon_expr);
+
+		if con.con_type == '<='
+			c_expr                  = [c_expr;                   con_expr                      ];
+			gc_s_expr               = [gc_s_expr;                gcon_s_expr                   ];
+			scenario.optfcns.gc.i   = [scenario.optfcns.gc.i;    gcon_i                        ];
+			scenario.optfcns.gc.j   = [scenario.optfcns.gc.j;    gcon_j+scenario.optfcns.gc.n  ];
+			scenario.optfcns.gc.n   =  scenario.optfcns.gc.n   + gcon_n;
+		else
+			ceq_expr                = [ceq_expr;                 con_expr                      ];
+			gceq_s_expr             = [gceq_s_expr;              gcon_s_expr                   ];
+			scenario.optfcns.gceq.i = [scenario.optfcns.gceq.i;  gcon_i                        ];
+			scenario.optfcns.gceq.j = [scenario.optfcns.gceq.j;  gcon_j+scenario.optfcns.gceq.n];
+			scenario.optfcns.gceq.n =  scenario.optfcns.gceq.n + gcon_n;
+		end
+	end
+	disp('	Simplifyng inequality constraints')
+	c_expr   = simplify(c_expr);
+
+	disp('	Simplifyng equality constraints')
+	ceq_expr = simplify(ceq_expr);
+
+	disp('	Simplifying inequality constraint gradient')
+	gc_s_expr   = simplify(gc_s_expr);
+
+	disp('	Simplifying equality constraint gradient')
+	gceq_s_expr = simplify(gceq_s_expr);
+
+	disp('	Creating inequality constraint anonymous function')
+	scenario.optfcns.c   = matlabFunction(c_expr,   'vars', {opt_params});
+
+	disp('	Creating equality constraint anonymous function')
+	scenario.optfcns.ceq = matlabFunction(ceq_expr, 'vars', {opt_params});
+
+	disp('	Creating inequality constraint gradient anonymous function')
+	scenario.optfcns.gc.s   = matlabFunction(gc_s_expr,   'vars', {opt_params});
+
+	disp('	Creating equality constraint gradient anonymous function')
+	scenario.optfcns.gceq.s = matlabFunction(gceq_s_expr, 'vars', {opt_params});
+
+	disp('	Cleaning up symbolic variables')
+	syms opt_params clear
+end
+
+% Sets up parameter maps for the phases
+function scenario = process_phases(scenario)
+	cur_params = 0;
+	% Iterate through parameter counts, putting ranges into scenario.param_map
+	for iterphase = 1:numel(scenario.phases)
+		phase = scenario.phases{iterphase};
+		disp(['	Processing parameters for phase ''' phase.names.phase ''''])
+		scenario.param_map(1, iterphase) = cur_params + 1;
+		scenario.param_map(2, iterphase) = cur_params + phase.n_params;
+		cur_params = cur_params + phase.n_params;
 	end
 end
 
 % Handles everything necessary for the scenario function
-function scenario = process_scenario_fcn(scenario, scenario_fcn)
+function scenario = process_scenario_fcn(scenario, scenario_fcn, opt_params)
 	% Check if a scenario function was given. If not, return scenario.
 	if isempty(scenario_fcn)
 		scenario = scenario;
@@ -102,11 +226,8 @@ function scenario = process_scenario_fcn(scenario, scenario_fcn)
 
 	disp('	Setting up to call scenario function')
 
-	% Set up the symbolic variables representing the optimization and additional parameters
-	opt_params   = sym('x', [scenario.param_maps.n_opt_params   1]);
-
 	% Add the symbolic outputs for each function to the scenario
-	scenario = traj_eval_funcs(scenario, opt_params, noopt_params, true);
+	scenario = traj_eval_funcs(scenario, opt_params, []);
 
 	% Call the scenario function, capturing all output arguments
 	disp('	Calling scenario function')
@@ -137,7 +258,7 @@ function scenario = process_scenario_fcn(scenario, scenario_fcn)
 				% Convert the constraint function to an anonymous function, then append it to the
 				% constraints field.
 				output.fcn = matlabFunction(simplify(output.fcn), 'vars', ...
-					{opt_params, noopt_params});
+					{opt_params});
 				scenario.scenfun.constraints{end+1} = output;
 
 			case 'cost'
@@ -147,7 +268,7 @@ function scenario = process_scenario_fcn(scenario, scenario_fcn)
 				% Convert the cost function to an anonymous function with appropriate inputs, then
 				% append it to the costs field
 				output.fcn = matlabFunction(output.fcn, 'vars', ...
-					{opt_params, noopt_params});
+					{opt_params});
 				scenario.scenfun.costs{end+1} = output;
 
 			otherwise

@@ -201,7 +201,7 @@ function phase = setup_dircol_trapz(phase, dynsys_fcn)
 	opt_params = {[sym_states(:); sym_inputs(:); sym_duration]};
 
 	% Record the parameter count for traj_setup_scenario
-	phase.n_params = numel(opt_params);
+	phase.n_params = numel(opt_params{1});
 
 	% Set up dt
 	sym_dt = sym_duration/phase.n_intervals;
@@ -232,9 +232,12 @@ function phase = setup_dircol_trapz(phase, dynsys_fcn)
 	ceq_expr = sym_dt * (dstates(:,1:end-1) + dstates(:,2:end)) - 2 * (sym_states(:,2:end) - sym_states(:,1:end-1));
 	ceq_expr = ceq_expr(:);
 
+	% Create nonnegative duration constraint
+	disp('		Creating nonnegative duration constraint')
+	c_expr = -sym_duration;
+
 	% Handle the rest of the constraints
 	disp('		Processing user-specified phase constraint functions')
-	c_expr = [];
 	for itercon = 1:numel(phase.dynsys.constraints)
 		con = phase.dynsys.constraints{itercon};
 		disp(['			Processing constraint ''' con.name ''''])
