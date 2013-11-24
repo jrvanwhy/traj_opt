@@ -43,7 +43,8 @@ function scenario = slip_hop(n_intervals)
 	% Check if it failed -- if so, run the constraint feasibility analyzer
 	if ~success
 		% It failed -- run the analyzer
-		traj_analyze_feasibility(scenario);
+		% Commented out until analyzer has been written
+		%traj_analyze_feasibility(scenario);
 	end
 end
 
@@ -51,7 +52,7 @@ end
 % of the inverted pendulum and constraints on its dynamic motion.
 % Since add_params and noopt_params is not necessary for this dynamic system, we do not need to make
 % them parameters.
-function [dx,cost,powerfcn,nonneg_force] = dynamic_system(x, u)
+function [dx,cost,powerfcn] = dynamic_system(x, u)
 	% Some basic system parameters
 	mass         = 59.9; % Mass of the SLIP in kg
 	spring_const = 6543; % Spring constant on N/m
@@ -76,10 +77,12 @@ function [dx,cost,powerfcn,nonneg_force] = dynamic_system(x, u)
 
 	% Set up our cost (unsigned work)
 	c    = 1;
-	cost = traj_create_cost('work', sqrt(power^2 + c^2));
+	cost = traj_create_cost('work', sqrt(power^2 + c^2)-c);
 
 	% Constrain force to remain nonnegative
-	nonneg_force = traj_create_constraint('Nonnegative force', force, '>=', 0);
+	% This is disabled to allow for interior-point algorithms, since this constraint prevents the problem
+	% from being strictly feasible
+	%nonneg_force = traj_create_constraint('Nonnegative force', force, '>=', 0);
 end
 
 % This is the scenario function. It takes in a scenario that is populated with symbolic values, and imposes additional constraints
@@ -92,6 +95,6 @@ function [start_state_con,end_state_con] = scenario_fcn(scenario)
 	td_spd    = sqrt(2*g*drop_dist); % Speed at touchdown
 
 	% Constrain the starting state to match our given touchdown conditions, and our ending state to be its "opposite".
-	start_state_con = traj_create_constraint('Starting state', scenario.phases(1).states(:,1),   '=', [td_hgt; -td_spd; 0]);
-	end_state_con   = traj_create_constraint('Ending state',   scenario.phases(1).states(:,end), '=', [td_hgt;  td_spd; 0]);
+	start_state_con = traj_create_constraint('Starting state', scenario.phases{1}.states(:,1),   '=', [td_hgt; -td_spd; 0]);
+	end_state_con   = traj_create_constraint('Ending state',   scenario.phases{1}.states(:,end), '=', [td_hgt;  td_spd; 0]);
 end

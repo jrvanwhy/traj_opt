@@ -36,16 +36,17 @@ function [scenario,success] = run_opt_fmincon(scenario, noopt_params)
 	                   'GradConstr',      'on',             ...
 	                   'Hessian',         'lbfgs');
 	if isfield(scenario, 'fmincon') && isfield(scenario.fmincon, 'options')
-		options = optimset(scenario.fmincon.options, options);
+		disp('	Using user-supplied options')
+		options = optimset(options, scenario.fmincon.options);
 	end
 	scenario.opt_fmincon.options = options;
 
 	% Maximum iteration counts
 	if ~isfield(scenario.opt_fmincon, 'max_seek_iters')
-		scenario.opt_fmincon.max_seek_iters = 20;
+		scenario.opt_fmincon.max_seek_iters = 100;
 	end
 	if ~isfield(scenario.opt_fmincon, 'max_possible_iters')
-		scenario.opt_fmincon.max_possible_iters = 5;
+		scenario.opt_fmincon.max_possible_iters = 30;
 	end
 	if ~isfield(scenario.opt_fmincon, 'max_found_iters')
 		scenario.opt_fmincon.max_found_iters = 2;

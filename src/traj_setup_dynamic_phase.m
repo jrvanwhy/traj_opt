@@ -209,26 +209,28 @@ function phase = setup_dircol_trapz(phase, dynsys_fcn)
 	% Generate dynamic system function expressions.
 	phase = call_dynsys_fcn(phase, dynsys_fcn, sym_states(:,1), sym_inputs(:,1), sym([]), sym([]));
 
+	% Generate important intermediate values
+	dstates    = phase.dynsys.dx(sym_states, sym_inputs, [], []);
+	mid_states = (sym_states(:,1:end-1) + sym_states(:,2:end))/2;
+	mid_inputs = (sym_inputs(:,1:end-1) + sym_inputs(:,2:end))/2;
+
 	% Generate costs
 	disp('		Creating phase cost expression')
 	cost_expr = sym(0);
 	for itercost = 1:numel(phase.dynsys.costs)
 		cost = phase.dynsys.costs{itercost};
-		disp(['			Processing cost ''' + cost.name ''''])
+		disp(['			Processing cost ''' cost.name ''''])
 
-		% Use trapezoidal integration to evaluate the cost
-		cost_expr = cost_expr + sym_dt * trapz(cost.fcn(sym_states, sym_inputs, [], []));
+		% Use Simpson's rule integration to eliminate false minima resulting from the discretization.
+		cost_expr = cost_expr +                                                  ...
+		            sym_dt * trapz(cost.fcn(sym_states, sym_inputs, [], []))/3 + ...
+		            sym_dt * sum(cost.fcn(mid_states, mid_inputs, [], [])) * 2/3;
 	end
 	disp('		Converting phase cost expression to a function')
 	phase.cost  = matlabFunction(cost_expr, 'vars', opt_params);
-	disp('		Creating cost gradient function')
-	gcost_expr  = jacobian(cost_expr, opt_params{1}).';
-	disp('		Converting cost gradient expression to a function')
-	phase.gcost = matlabFunction(gcost_expr, 'vars', opt_params);
 
 	% Generate collocation constraint
 	disp('		Creating collocation constraint')
-	dstates  = phase.dynsys.dx(sym_states, sym_inputs, [], []);
 	ceq_expr = sym_dt * (dstates(:,1:end-1) + dstates(:,2:end)) - 2 * (sym_states(:,2:end) - sym_states(:,1:end-1));
 	ceq_expr = ceq_expr(:);
 
@@ -282,6 +284,11 @@ function phase = setup_dircol_trapz(phase, dynsys_fcn)
 	for iterfcn = 1:numel(phase.functions)
 		fcn = phase.functions{iterfcn};
 		disp(['			Processing function ''' fcn.name ''''])
+
+		% If it's an anonymous function, then call it to obtain the output expression
+		if isa(fcn.fcn, 'function_handle')
+			fcn.fcn = fcn.fcn(sym_states, sym_inputs, [], []);
+		end
 
 		% Make it an anonymous function
 		fcn.fcn = matlabFunction(fcn.fcn, 'vars', opt_params);
