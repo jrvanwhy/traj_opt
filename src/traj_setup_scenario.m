@@ -114,24 +114,24 @@ function scenario = gen_optfcns(scenario, scenario_fcn)
 	cost_expr = simplify(cost_expr);
 	disp('	Converting final cost to anonymous function')
 	scenario.optfcns.cost = matlabFunction(cost_expr, 'vars', {opt_params});
-	disp('	Creating cost gradient expression')
-	gcost_expr = jacobian(cost_expr, opt_params).';
-	disp('	Converting cost gradient to anonymous function')
-	scenario.optfcns.gcost = matlabFunction(gcost_expr, 'vars', {opt_params});
+	disp('	Creating cost jacobian expression')
+	jcost_expr = jacobian(cost_expr, opt_params);
+	disp('	Converting cost jacobian to anonymous function')
+	scenario.optfcns.jcost = matlabFunction(jcost_expr, 'vars', {opt_params});
 
 	disp('	Creating final constraint expressions')
 	c_expr                  = sym([]);
 	ceq_expr                = sym([]);
-	gc_s_expr               = sym([]);
-	gceq_s_expr             = sym([]);
-	scenario.optfcns.gc.i   = [];
-	scenario.optfcns.gc.j   = [];
-	scenario.optfcns.gc.m   = 0;
-	scenario.optfcns.gc.n   = 0;
-	scenario.optfcns.gceq.i = [];
-	scenario.optfcns.gceq.j = [];
-	scenario.optfcns.gceq.m = 0;
-	scenario.optfcns.gceq.n = 0;
+	jc_s_expr               = sym([]);
+	jceq_s_expr             = sym([]);
+	scenario.optfcns.jc.i   = [];
+	scenario.optfcns.jc.j   = [];
+	scenario.optfcns.jc.m   = 0;
+	scenario.optfcns.jc.n   = 0;
+	scenario.optfcns.jceq.i = [];
+	scenario.optfcns.jceq.j = [];
+	scenario.optfcns.jceq.m = 0;
+	scenario.optfcns.jceq.n = 0;
 	% Iterate through the phases, processing their constraints
 	for iter_phase = 1:numel(scenario.phases)
 		phase = scenario.phases{iter_phase};
@@ -140,16 +140,16 @@ function scenario = gen_optfcns(scenario, scenario_fcn)
 
 		c_expr                  = [c_expr;                   phase.c(phase_params)               ];
 		ceq_expr                = [ceq_expr;                 phase.ceq(phase_params)             ];
-		gc_s_expr               = [gc_s_expr;                phase.gc.s(phase_params)            ];
-		gceq_s_expr             = [gceq_s_expr;              phase.gceq.s(phase_params)          ];
-		scenario.optfcns.gc.i   = [scenario.optfcns.gc.i;    phase.gc.i+scenario.optfcns.gc.m    ];
-		scenario.optfcns.gc.j   = [scenario.optfcns.gc.j;    phase.gc.j+scenario.optfcns.gc.n    ];
-		scenario.optfcns.gc.m   =  scenario.optfcns.gc.m   + phase.gc.m;
-		scenario.optfcns.gc.n   =  scenario.optfcns.gc.n   + phase.gc.n;
-		scenario.optfcns.gceq.i = [scenario.optfcns.gceq.i;  phase.gceq.i+scenario.optfcns.gceq.m];
-		scenario.optfcns.gceq.j = [scenario.optfcns.gceq.j;  phase.gceq.j+scenario.optfcns.gceq.n];
-		scenario.optfcns.gceq.m =  scenario.optfcns.gceq.m + phase.gceq.m;
-		scenario.optfcns.gceq.n =  scenario.optfcns.gceq.n + phase.gceq.n;
+		jc_s_expr               = [jc_s_expr;                phase.jc.s(phase_params)            ];
+		jceq_s_expr             = [jceq_s_expr;              phase.jceq.s(phase_params)          ];
+		scenario.optfcns.jc.i   = [scenario.optfcns.jc.i;    phase.jc.i+scenario.optfcns.jc.m    ];
+		scenario.optfcns.jc.j   = [scenario.optfcns.jc.j;    phase.jc.j+scenario.optfcns.jc.n    ];
+		scenario.optfcns.jc.m   =  scenario.optfcns.jc.m   + phase.jc.m;
+		scenario.optfcns.jc.n   =  scenario.optfcns.jc.n   + phase.jc.n;
+		scenario.optfcns.jceq.i = [scenario.optfcns.jceq.i;  phase.jceq.i+scenario.optfcns.jceq.m];
+		scenario.optfcns.jceq.j = [scenario.optfcns.jceq.j;  phase.jceq.j+scenario.optfcns.jceq.n];
+		scenario.optfcns.jceq.m =  scenario.optfcns.jceq.m + phase.jceq.m;
+		scenario.optfcns.jceq.n =  scenario.optfcns.jceq.n + phase.jceq.n;
 	end
 	% Iterate through scenario function constraints
 	for iter_scen_con = 1:numel(scenario.scenfun.constraints)
@@ -157,22 +157,22 @@ function scenario = gen_optfcns(scenario, scenario_fcn)
 		disp(['		Adding constraint ''' con.name ''''])
 
 		con_expr                    = con.fcn(opt_params);
-		gcon_expr                   = jacobian(con_expr, opt_params).';
-		gcon_n                      = size(gcon_expr, 2);
-		[gcon_i,gcon_j,gcon_s_expr] = find(gcon_expr);
+		jcon_expr                   = jacobian(con_expr, opt_params);
+		jcon_m                      = size(jcon_expr, 1);
+		[jcon_i,jcon_j,jcon_s_expr] = find(jcon_expr);
 
 		if con.con_type == '<='
 			c_expr                  = [c_expr;                   con_expr                      ];
-			gc_s_expr               = [gc_s_expr;                gcon_s_expr                   ];
-			scenario.optfcns.gc.i   = [scenario.optfcns.gc.i;    gcon_i                        ];
-			scenario.optfcns.gc.j   = [scenario.optfcns.gc.j;    gcon_j+scenario.optfcns.gc.n  ];
-			scenario.optfcns.gc.n   =  scenario.optfcns.gc.n   + gcon_n;
+			jc_s_expr               = [jc_s_expr;                jcon_s_expr                   ];
+			scenario.optfcns.jc.i   = [scenario.optfcns.jc.i;    jcon_i+scenario.optfcns.jc.m  ];
+			scenario.optfcns.jc.j   = [scenario.optfcns.jc.j;    jcon_j                        ];
+			scenario.optfcns.jc.m   =  scenario.optfcns.jc.m   + jcon_m;
 		else
 			ceq_expr                = [ceq_expr;                 con_expr                      ];
-			gceq_s_expr             = [gceq_s_expr;              gcon_s_expr                   ];
-			scenario.optfcns.gceq.i = [scenario.optfcns.gceq.i;  gcon_i                        ];
-			scenario.optfcns.gceq.j = [scenario.optfcns.gceq.j;  gcon_j+scenario.optfcns.gceq.n];
-			scenario.optfcns.gceq.n =  scenario.optfcns.gceq.n + gcon_n;
+			jceq_s_expr             = [jceq_s_expr;              jcon_s_expr                   ];
+			scenario.optfcns.jceq.i = [scenario.optfcns.jceq.i;  jcon_i+scenario.optfcns.jceq.m];
+			scenario.optfcns.jceq.j = [scenario.optfcns.jceq.j;  jcon_j                        ];
+			scenario.optfcns.jceq.m =  scenario.optfcns.jceq.m + jcon_m;
 		end
 	end
 	disp('	Simplifyng inequality constraints')
@@ -181,11 +181,11 @@ function scenario = gen_optfcns(scenario, scenario_fcn)
 	disp('	Simplifyng equality constraints')
 	ceq_expr = simplify(ceq_expr);
 
-	disp('	Simplifying inequality constraint gradient')
-	gc_s_expr   = simplify(gc_s_expr);
+	disp('	Simplifying inequality constraint jacobian')
+	jc_s_expr   = simplify(jc_s_expr);
 
-	disp('	Simplifying equality constraint gradient')
-	gceq_s_expr = simplify(gceq_s_expr);
+	disp('	Simplifying equality constraint jacobian')
+	jceq_s_expr = simplify(jceq_s_expr);
 
 	disp('	Creating inequality constraint anonymous function')
 	scenario.optfcns.c   = matlabFunction(c_expr,   'vars', {opt_params});
@@ -193,11 +193,11 @@ function scenario = gen_optfcns(scenario, scenario_fcn)
 	disp('	Creating equality constraint anonymous function')
 	scenario.optfcns.ceq = matlabFunction(ceq_expr, 'vars', {opt_params});
 
-	disp('	Creating inequality constraint gradient anonymous function')
-	scenario.optfcns.gc.s   = matlabFunction(gc_s_expr,   'vars', {opt_params});
+	disp('	Creating inequality constraint jacobian anonymous function')
+	scenario.optfcns.jc.s   = matlabFunction(jc_s_expr,   'vars', {opt_params});
 
-	disp('	Creating equality constraint gradient anonymous function')
-	scenario.optfcns.gceq.s = matlabFunction(gceq_s_expr, 'vars', {opt_params});
+	disp('	Creating equality constraint jacobian anonymous function')
+	scenario.optfcns.jceq.s = matlabFunction(jceq_s_expr, 'vars', {opt_params});
 
 	disp('	Cleaning up symbolic variables')
 	syms opt_params clear

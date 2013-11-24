@@ -237,20 +237,20 @@ function phase = process_constraints(phase, opt_params, sym_duration, colloc_con
 	phase.c   = matlabFunction(c_expr,   'vars', {opt_params});
 	disp('		Converting equality constraints to a function')
 	phase.ceq = matlabFunction(ceq_expr, 'vars', {opt_params});
-	disp('		Generating inequality constraint gradient expression')
-	gc_expr   = jacobian(c_expr,   opt_params).';
-	disp('		Generating equality constraint gradient expression')
-	gceq_expr = jacobian(ceq_expr, opt_params).';
-	disp('		Converting inequality constraint gradient into sparse form')
-	[phase.gc.m,phase.gc.n]                 = size(gc_expr);
-	[phase.gc.i,phase.gc.j,gc_s_expr]       = find(gc_expr);
-	disp('		Converting equality constraint gradient into sparse form')
-	[phase.gceq.m,phase.gceq.n]             = size(gceq_expr);
-	[phase.gceq.i,phase.gceq.j,gceq_s_expr] = find(gceq_expr);
-	disp('		Creating inequality constraint gradient value function')
-	phase.gc.s                        = matlabFunction(gc_s_expr,   'vars', {opt_params});
-	disp('		Creating equality constraint gradient value function')
-	phase.gceq.s                      = matlabFunction(gceq_s_expr, 'vars', {opt_params});
+	disp('		Generating inequality constraint jacobian expression')
+	jc_expr   = jacobian(c_expr,   opt_params);
+	disp('		Generating equality constraint jacobian expression')
+	jceq_expr = jacobian(ceq_expr, opt_params);
+	disp('		Converting inequality constraint jacobian into sparse form')
+	[phase.jc.m,phase.jc.n]                 = size(jc_expr);
+	[phase.jc.i,phase.jc.j,jc_s_expr]       = find(jc_expr);
+	disp('		Converting equality constraint jacobian into sparse form')
+	[phase.jceq.m,phase.jceq.n]             = size(jceq_expr);
+	[phase.jceq.i,phase.jceq.j,jceq_s_expr] = find(jceq_expr);
+	disp('		Creating inequality constraint jacobian value function')
+	phase.jc.s                        = matlabFunction(jc_s_expr,   'vars', {opt_params});
+	disp('		Creating equality constraint jacobian value function')
+	phase.jceq.s                      = matlabFunction(jceq_s_expr, 'vars', {opt_params});
 end
 
 % This function processes the solver-defined and user-defined functions
