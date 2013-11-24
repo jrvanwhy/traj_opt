@@ -40,9 +40,9 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 		noopt_params = {};
 	end
 
-	% Default to trapezoidal integration
+	% Default to midpoint integration
 	if nargin < 8 || isempty(technique)
-		technique = 'trapezoidal';
+		technique = 'midpoint';
 	end
 
 	% This is the input sanity verification section

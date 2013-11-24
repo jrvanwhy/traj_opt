@@ -8,7 +8,7 @@ function results = benchmark(cutoff_time, ode_type)
 	end
 
 	% The current number of intervals
-	cur_intrvls = 2; % Start at 2, as that's the lowest value for which the optimization converges.
+	cur_intrvls = 3; % Start at 3, as that's the lowest value for which the optimization converges for all solver types.
 
 	% Initialize the results
 	results.t_phase    = [];
@@ -18,6 +18,7 @@ function results = benchmark(cutoff_time, ode_type)
 	results.scenarios  = {};
 	results.opts       = {};
 	results.fvals      = [];
+	results.intervals  = [];
 
 	% Iterate through the intervals until we reach the cutoff time
 	while sum(results.t_phase) + sum(results.t_scenario) + sum(results.t_opts) < cutoff_time
@@ -43,6 +44,9 @@ function results = benchmark(cutoff_time, ode_type)
 		results.opts{1,end+1}   = traj_optimize(results.scenarios{end});
 		results.t_opts(1,end+1) = toc;
 		results.fvals(1,end+1)  = results.opts{1,end}.opt_fmincon.fvals(end);
+
+		% Handy variable for plotting
+		results.intervals(end+1) = cur_intrvls;
 
 		% Increment current interval count
 		cur_intrvls = cur_intrvls + 1;
