@@ -273,6 +273,62 @@ function functions = process_functions(functions, opt_params, fcn_eval_fcn)
 	end
 end
 
+% This function sets up for midpoint-based direct collocation
+function phase = setup_dircol_midpoint(phase, dynsys_fcn)
+	disp('	Setting up midpoint ODE solver')
+
+	% Set up states, inputs, and duration
+	disp('		Creating symbolic parameters')
+	[sym_states,sym_inputs,sym_duration,opt_params,phase.n_params] =  ...
+		gen_params(numel(phase.names.state), phase.n_intervals+1, ...
+		           numel(phase.names.input), phase.n_intervals);
+
+	% Set up dt
+	sym_dt = sym_duration/phase.n_intervals;
+
+	% Generate dynamic system function expressions.
+	phase = call_dynsys_fcn(phase, dynsys_fcn, sym_states(:,1), sym_inputs(:,1), sym([]), sym([]));
+
+	% Generate important intermediate values
+	mid_states = (sym_states(:,1:end-1) + sym_states(:,2:end))/2;
+
+	% Generate costs
+	function dcost_expr = mid_cost_fcn(cost_fcn)
+		% Midpoint integration!
+		dcost_expr = sym_dt * cost_fcn(mid_states, sym_inputs, [], []);
+	end
+	[phase.cost,cost_expr] = sum_costs(phase.dynsys.costs, opt_params, @mid_cost_fcn);
+
+	% Generate collocation constraint
+	disp('		Creating and processing constraints')
+	colloc_con = traj_create_constraint('collocation', ...
+		sym_dt * phase.dynsys.dx(mid_states, sym_inputs, [], []), '=', ...
+		sym_states(:,2:end) - sym_states(:,1:end-1));
+
+	function newcon_expr = mid_con_eval_fcn(con_fcn)
+		newcon_expr = con_fcn(mid_states, sym_inputs, [], []);
+	end
+	phase = process_constraints(phase, opt_params, sym_duration, colloc_con, @mid_con_eval_fcn);
+
+	% Define a few useful functions.
+	% For simplicity, we inject them directly into the outputs from the dynamic system function
+	disp('		Processing functions')
+	phase.functions = phase.dynsys.functions;
+	phase.functions{end+1} = traj_create_function('states', sym_states);
+	phase.functions{end+1} = traj_create_function('inputs', sym_inputs);
+	phase.functions{end+1} = traj_create_function('duration', sym_duration);
+
+	% Function evaluation function
+	function fcn_vals = mid_fcn_eval_fcn(fcn)
+		fcn_vals = fcn(mid_states, sym_inputs, [], []);
+	end
+	phase.functions = process_functions(phase.functions, opt_params, @mid_fcn_eval_fcn);
+
+	% Clean up symbolic variables
+	disp('	Cleaning up symbolic variables')
+	syms sym_states sym_inputs sym_duration clear
+end
+
 % This function sets up for trapezoidal direct collocation
 function phase = setup_dircol_trapz(phase, dynsys_fcn)
 	disp('	Setting up trapezoidal ODE solver')

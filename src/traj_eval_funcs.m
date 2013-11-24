@@ -28,7 +28,17 @@ function scenario = traj_eval_funcs(scenario, opt_params, noopt_params)
 			end
 
 			time_name         = ['t_' iter_fcn.name];
-			phase.(time_name) = phase.duration * linspace(0, 1, 1+phase.n_intervals);
+			% Time spacing depends on the ODE solver type
+			switch phase.technique
+				case 'trapezoidal'
+					phase.(time_name) = phase.duration * linspace(0, 1, 1+phase.n_intervals);
+
+				case 'midpoint'
+					phase.(time_name) = phase.duration * full_grid(2:2:2*phase.n_intervals);
+
+				otherwise
+					error(['Technique ''' phase.technique ''' not recognized.'])
+			end
 		end
 
 		scenario.phases{iter_phase} = phase;
