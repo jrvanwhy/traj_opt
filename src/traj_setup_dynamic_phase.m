@@ -12,7 +12,7 @@
 %     noopt_params Parameters for this phase that should not be affected by the optimizer, but will be set
 %                  by the user prior to running the optimization (cell array of names).
 
-function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_intervals, add_params, noopt_params)
+function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_intervals, add_params, noopt_params, technique)
 	% This section of this function sets default values for its arguments
 	% The default value for name is the empty string
 	if nargin < 1 || isempty(name)
@@ -38,6 +38,11 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 	end
 	if nargin < 7 || isempty(noopt_params)
 		noopt_params = {};
+	end
+
+	% Default to trapezoidal integration
+	if nargin < 8 || isempty(technique)
+		technique = 'trapezoidal';
 	end
 
 	% This is the input sanity verification section
@@ -78,6 +83,11 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 		error('noopt_params must be a cell array of strings')
 	end
 
+	% Check that the name is a string
+	if ~ischar(technique)
+		error('Optimization technique must be a string')
+	end
+
 	% Default parameters and input sanity checks done. The actual core of the function is below.
 
 	% Spit out a simple message to indicate stuff's happening
@@ -97,8 +107,11 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 	phase.names.noopt_params = noopt_params(:);
 	phase.names.state        = state(:);
 
+	% Set the technique
+	phase.technique = technique;
+
 	% Do setup (currently, we only have trapezoidal direct collocation)
-	phase = setup_dircol_trapz(phase, dynsys_fcn);
+	phase = setup_ode_solver(phase, dynsys_fcn);
 
 	% Let the user know when this function terminates
 	disp(['Setup for phase ''' name ''' completed.'])
@@ -187,21 +200,88 @@ function phase = call_dynsys_fcn(phase, dynsys_fcn, sym_state, sym_input, sym_ad
 	end
 end
 
+% Generate the symbolic parameters for the optimization
+function [sym_states,sym_inputs,sym_duration,opt_params,n_params] = gen_params(state_size, state_grid, input_size, input_grid)
+	sym_states   = sym('x', [state_size state_grid]);
+	sym_inputs   = sym('u', [input_size input_grid]);
+	sym_duration = sym('d', 'real');
+	opt_params   = [sym_states(:); sym_inputs(:); sym_duration];
+	n_params     = numel(opt_params);
+end
+
+% This function processes constraints. It also adds in the nonnegative duration constraint
+function phase = process_constraints(phase, opt_params, sym_duration, colloc_con, con_eval_fcn)
+	% Just copy over the collocation constraint, since it's symbolic already
+	disp('		Handling collocation constraint')
+	ceq_expr = colloc_con.fcn;
+
+	% Create nonnegative duration constraint
+	disp('		Creating nonnegative duration constraint')
+	c_expr = -sym_duration;
+
+	% Handle the rest of the constraints
+	disp('		Processing user-specified phase constraint functions')
+	for itercon = 1:numel(phase.dynsys.constraints)
+		con = phase.dynsys.constraints{itercon};
+		disp(['			Processing constraint ''' con.name ''''])
+
+		% Detect constraint type
+		con_expr = con_eval_fcn(con.fcn);
+		if con.con_type == '<='
+			c_expr   = [c_expr; con_expr(:)];
+		else
+			ceq_expr = [ceq_expr; con_expr(:)];
+		end
+	end
+	disp('		Converting inequality constraints to a function')
+	phase.c   = matlabFunction(c_expr,   'vars', {opt_params});
+	disp('		Converting equality constraints to a function')
+	phase.ceq = matlabFunction(ceq_expr, 'vars', {opt_params});
+	disp('		Generating inequality constraint gradient expression')
+	gc_expr   = jacobian(c_expr,   opt_params).';
+	disp('		Generating equality constraint gradient expression')
+	gceq_expr = jacobian(ceq_expr, opt_params).';
+	disp('		Converting inequality constraint gradient into sparse form')
+	[phase.gc.m,phase.gc.n]                 = size(gc_expr);
+	[phase.gc.i,phase.gc.j,gc_s_expr]       = find(gc_expr);
+	disp('		Converting equality constraint gradient into sparse form')
+	[phase.gceq.m,phase.gceq.n]             = size(gceq_expr);
+	[phase.gceq.i,phase.gceq.j,gceq_s_expr] = find(gceq_expr);
+	disp('		Creating inequality constraint gradient value function')
+	phase.gc.s                        = matlabFunction(gc_s_expr,   'vars', {opt_params});
+	disp('		Creating equality constraint gradient value function')
+	phase.gceq.s                      = matlabFunction(gceq_s_expr, 'vars', {opt_params});
+end
+
+% This function processes the solver-defined and user-defined functions
+function functions = process_functions(functions, opt_params, fcn_eval_fcn)
+	% Handle the dynamic system functions (plus our own ones above)
+	for iterfcn = 1:numel(functions)
+		fcn = functions{iterfcn};
+		disp(['			Processing function ''' fcn.name ''''])
+
+		% If it's an anonymous function, then call it to obtain the output expression
+		if isa(fcn.fcn, 'function_handle')
+			fcn.fcn = fcn_eval_fcn(fcn.fcn);
+		end
+
+		% Make it an anonymous function
+		fcn.fcn = matlabFunction(fcn.fcn, 'vars', {opt_params});
+
+		% Copy function over
+		functions{iterfcn}.fcn = fcn.fcn;
+	end
+end
+
 % This function sets up for trapezoidal direct collocation
 function phase = setup_dircol_trapz(phase, dynsys_fcn)
 	disp('	Setting up trapezoidal ODE solver')
 
 	% Set up states, inputs, and duration
 	disp('		Creating symbolic parameters')
-	sym_states   = sym('x', [numel(phase.names.state) phase.n_intervals+1]);
-	sym_inputs   = sym('u', [numel(phase.names.input) phase.n_intervals+1]);
-	sym_duration = sym('d', 'real');
-
-	% Create optimization parameters list
-	opt_params = {[sym_states(:); sym_inputs(:); sym_duration]};
-
-	% Record the parameter count for traj_setup_scenario
-	phase.n_params = numel(opt_params{1});
+	[sym_states,sym_inputs,sym_duration,opt_params,phase.n_params] =  ...
+		gen_params(numel(phase.names.state), phase.n_intervals+1, ...
+		           numel(phase.names.input), phase.n_intervals+1);
 
 	% Set up dt
 	sym_dt = sym_duration/phase.n_intervals;
@@ -215,61 +295,23 @@ function phase = setup_dircol_trapz(phase, dynsys_fcn)
 	mid_inputs = (sym_inputs(:,1:end-1) + sym_inputs(:,2:end))/2;
 
 	% Generate costs
-	disp('		Creating phase cost expression')
-	cost_expr = sym(0);
-	for itercost = 1:numel(phase.dynsys.costs)
-		cost = phase.dynsys.costs{itercost};
-		disp(['			Processing cost ''' cost.name ''''])
-
+	function dcost_expr = trapz_cost_fcn(cost_fcn)
 		% Use Simpson's rule integration to eliminate false minima resulting from the discretization.
-		cost_expr = cost_expr +                                                  ...
-		            sym_dt * trapz(cost.fcn(sym_states, sym_inputs, [], []))/3 + ...
-		            sym_dt * sum(cost.fcn(mid_states, mid_inputs, [], [])) * 2/3;
+		dcost_expr = sym_dt * trapz(cost_fcn(sym_states, sym_inputs, [], []))/3 + ...
+		             sym_dt * sum(cost_fcn(mid_states, mid_inputs, [], [])) * 2/3;
 	end
-	disp('		Converting phase cost expression to a function')
-	phase.cost  = matlabFunction(cost_expr, 'vars', opt_params);
+	[phase.cost,cost_expr] = sum_costs(phase.dynsys.costs, opt_params, @trapz_cost_fcn);
 
 	% Generate collocation constraint
-	disp('		Creating collocation constraint')
-	ceq_expr = sym_dt * (dstates(:,1:end-1) + dstates(:,2:end)) - 2 * (sym_states(:,2:end) - sym_states(:,1:end-1));
-	ceq_expr = ceq_expr(:);
+	disp('		Creating and processing constraints')
+	colloc_con = traj_create_constraint('collocation', ...
+		sym_dt * (dstates(:,1:end-1) + dstates(:,2:end)), '=', ...
+		2 * (sym_states(:,2:end) - sym_states(:,1:end-1)));
 
-	% Create nonnegative duration constraint
-	disp('		Creating nonnegative duration constraint')
-	c_expr = -sym_duration;
-
-	% Handle the rest of the constraints
-	disp('		Processing user-specified phase constraint functions')
-	for itercon = 1:numel(phase.dynsys.constraints)
-		con = phase.dynsys.constraints{itercon};
-		disp(['			Processing constraint ''' con.name ''''])
-
-		% Detect constraint type
-		con_expr = con.fcn(sym_states, sym_inputs, [], []);
-		if con.con_type == '<='
-			c_expr   = [c_expr; con_expr(:)];
-		else
-			ceq_expr = [ceq_expr; con_expr(:)];
-		end
+	function newcon_expr = trapz_con_eval_fcn(con_fcn)
+		newcon_expr = con_fcn(sym_states, sym_inputs, [], []);
 	end
-	disp('		Converting inequality constraints to a function')
-	phase.c   = matlabFunction(c_expr,   'vars', opt_params);
-	disp('		Converting equality constraints to a function')
-	phase.ceq = matlabFunction(ceq_expr, 'vars', opt_params);
-	disp('		Generating inequality constraint gradient expression')
-	gc_expr   = jacobian(c_expr,   opt_params{1}).';
-	disp('		Generating equality constraint gradient expression')
-	gceq_expr = jacobian(ceq_expr, opt_params{1}).';
-	disp('		Converting inequality constraint gradient into sparse form')
-	[phase.gc.m,phase.gc.n]                 = size(gc_expr);
-	[phase.gc.i,phase.gc.j,gc_s_expr]       = find(gc_expr);
-	disp('		Converting equality constraint gradient into sparse form')
-	[phase.gceq.m,phase.gceq.n]             = size(gceq_expr);
-	[phase.gceq.i,phase.gceq.j,gceq_s_expr] = find(gceq_expr);
-	disp('		Creating inequality constraint gradient value function')
-	phase.gc.s                        = matlabFunction(gc_s_expr,   'vars', opt_params);
-	disp('		Creating equality constraint gradient value function')
-	phase.gceq.s                      = matlabFunction(gceq_s_expr, 'vars', opt_params);
+	phase = process_constraints(phase, opt_params, sym_duration, colloc_con, @trapz_con_eval_fcn);
 
 	% Define a few useful functions.
 	% For simplicity, we inject them directly into the outputs from the dynamic system function
@@ -280,23 +322,42 @@ function phase = setup_dircol_trapz(phase, dynsys_fcn)
 	phase.functions{end+1} = traj_create_function('dstates', dstates);
 	phase.functions{end+1} = traj_create_function('duration', sym_duration);
 
-	% Handle the dynamic system functions (plus our own ones above)
-	for iterfcn = 1:numel(phase.functions)
-		fcn = phase.functions{iterfcn};
-		disp(['			Processing function ''' fcn.name ''''])
-
-		% If it's an anonymous function, then call it to obtain the output expression
-		if isa(fcn.fcn, 'function_handle')
-			fcn.fcn = fcn.fcn(sym_states, sym_inputs, [], []);
-		end
-
-		% Make it an anonymous function
-		fcn.fcn = matlabFunction(fcn.fcn, 'vars', opt_params);
-
-		% Copy function over
-		phase.functions{iterfcn}.fcn = fcn.fcn;
+	% Function evaluation function
+	function fcn_vals = trapz_fcn_eval_fcn(fcn)
+		fcn_vals = fcn(sym_states, sym_inputs, [], []);
 	end
+	phase.functions = process_functions(phase.functions, opt_params, @trapz_fcn_eval_fcn);
 
 	% Clean up symbolic variables
-	syms x u d clear
+	disp('	Cleaning up symbolic variables')
+	syms sym_states sym_inputs sym_duration clear
+end
+
+% This function determines the appropriate solver to use and calls it
+function phase = setup_ode_solver(phase, dynsys_fcn)
+	switch phase.technique
+		case 'trapezoidal'
+			phase = setup_dircol_trapz(phase, dynsys_fcn);
+
+		case 'midpoint'
+			phase = setup_dircol_midpoint(phase, dynsys_fcn);
+
+		otherwise
+			error(['Optimization technique ''' phase.technique ''' not recognized'])
+	end
+end
+
+% This function iterates through and sums up the costs.
+% You need to pass in a cost function, since this varies by solver type
+function [cost_fcn,cost_expr] = sum_costs(costs, opt_params, solver_cost_fcn)
+	disp('		Creating phase cost expression')
+	cost_expr = sym(0);
+	for itercost = 1:numel(costs)
+		cost = costs{itercost};
+		disp(['			Processing cost ''' cost.name ''''])
+
+		cost_expr = cost_expr + solver_cost_fcn(cost.fcn);
+	end
+	disp('		Converting phase cost expression to a function')
+	cost_fcn = matlabFunction(cost_expr, 'vars', {opt_params});
 end
