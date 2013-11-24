@@ -3,6 +3,10 @@
 % may be tested separately.
 
 function results = benchmark(cutoff_time, ode_type)
+	if nargin < 2 || isempty(ode_type)
+		ode_type = 'midpoint';
+	end
+
 	% The current number of intervals
 	cur_intrvls = 2; % Start at 2, as that's the lowest value for which the optimization converges.
 
