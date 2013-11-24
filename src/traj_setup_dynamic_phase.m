@@ -412,7 +412,7 @@ function [cost_fcn,cost_expr] = sum_costs(costs, opt_params, solver_cost_fcn)
 		cost = costs{itercost};
 		disp(['			Processing cost ''' cost.name ''''])
 
-		cost_expr = cost_expr + solver_cost_fcn(cost.fcn);
+		cost_expr = cost_expr + sum(solver_cost_fcn(cost.fcn));
 	end
 	disp('		Converting phase cost expression to a function')
 	cost_fcn = matlabFunction(cost_expr, 'vars', {opt_params});

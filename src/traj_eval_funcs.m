@@ -34,7 +34,13 @@ function scenario = traj_eval_funcs(scenario, opt_params, noopt_params)
 					phase.(time_name) = phase.duration * linspace(0, 1, 1+phase.n_intervals);
 
 				case 'midpoint'
-					phase.(time_name) = phase.duration * full_grid(2:2:2*phase.n_intervals);
+					% States are different from everything else
+					if strcmp(iter_fcn.name, 'states')
+						phase.(time_name) = phase.duration * linspace(0, 1, 1+phase.n_intervals);
+					else
+						full_grid = linspace(0, 1, 2*phase.n_intervals+1);
+						phase.(time_name) = phase.duration * full_grid(2:2:2*phase.n_intervals);
+					end
 
 				otherwise
 					error(['Technique ''' phase.technique ''' not recognized.'])
