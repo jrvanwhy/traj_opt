@@ -22,5 +22,5 @@ function hess = traj_gen_sparse_hess(params, lambdas, jac)
 	[hess.i,hess.j,hess.s] = find(red_hess);
 
 	% Create non-reduced hessian by filling in the zero rows
-	hess.i = nonzero_cols(hess.i);
+	hess.i = nonzero_cols(hess.i).';
 end

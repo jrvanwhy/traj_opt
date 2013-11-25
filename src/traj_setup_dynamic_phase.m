@@ -451,5 +451,5 @@ function [cost_fcn,hcost] = sum_costs(costs, opt_params, solver_cost_fcn)
 
 	% Go ahead and generate the hessian of the cost
 	disp('		Generating sparse hessian of phase cost')
-	hcost = traj_gen_sparse_hess(opt_params, 1, jacobian(cost_fcn, opt_params));
+	hcost = traj_gen_sparse_hess(opt_params, 1, jacobian(cost_expr, opt_params));
 end
