@@ -200,6 +200,19 @@ function phase = call_dynsys_fcn(phase, dynsys_fcn, sym_state, sym_input, sym_ad
 	end
 end
 
+% Do final hessian summation and conversion into an anonymous function
+function hess = finalize_hessian(opt_params, hcost, hcons)
+	disp('		Finalizing Hessian')
+	hess.i  = [hcost.i; hcons.i];
+	hess.j  = [hcost.j; hcons.j];
+	hess.mn =  hcost.mn;
+
+	hess.s  = matlabFunction([hcost.s; hcons.s], 'vars', {opt_params, hcons.lambdas});
+
+	disp('		Cleaning up symbolic lambdas')
+	syms l clear
+end
+
 % Generate the symbolic parameters for the optimization
 function [sym_states,sym_inputs,sym_duration,opt_params,n_params] = gen_params(state_size, state_grid, input_size, input_grid)
 	sym_states   = sym('x', [state_size state_grid]);
@@ -210,7 +223,7 @@ function [sym_states,sym_inputs,sym_duration,opt_params,n_params] = gen_params(s
 end
 
 % This function processes constraints. It also adds in the nonnegative duration constraint
-function phase = process_constraints(phase, opt_params, sym_duration, colloc_con, con_eval_fcn)
+function [phase,hcons] = process_constraints(phase, opt_params, sym_duration, colloc_con, con_eval_fcn)
 	% Just copy over the collocation constraint, since it's symbolic already
 	disp('		Handling collocation constraint')
 	ceq_expr = colloc_con.fcn;
@@ -251,6 +264,19 @@ function phase = process_constraints(phase, opt_params, sym_duration, colloc_con
 	phase.jc.s                        = matlabFunction(jc_s_expr,   'vars', {opt_params});
 	disp('		Creating equality constraint jacobian value function')
 	phase.jceq.s                      = matlabFunction(jceq_s_expr, 'vars', {opt_params});
+
+	disp('		Generating contraint hessian')
+	disp('			Creating symbolic lambdas')
+	n_c     = numel(c_expr);
+	n_ceq   = numel(ceq_expr);
+	n_cons  = n_c + n_ceq;
+	lambdas = sym('l', [n_cons 1]);
+
+	disp('			Creating sparse symbolic hessian')
+	hcons = traj_gen_sparse_hess(opt_params, lambdas, [jc_expr; jceq_expr]);
+
+	% Return the lambdas too
+	hcons.lambdas = lambdas;
 end
 
 % This function processes the solver-defined and user-defined functions
@@ -297,7 +323,7 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 		% Midpoint integration!
 		dcost_expr = sym_dt * cost_fcn(mid_states, sym_inputs, [], []);
 	end
-	[phase.cost,cost_expr] = sum_costs(phase.dynsys.costs, opt_params, @mid_cost_fcn);
+	[phase.cost,hcost] = sum_costs(phase.dynsys.costs, opt_params, @mid_cost_fcn);
 
 	% Generate collocation constraint
 	disp('		Creating and processing constraints')
@@ -308,7 +334,10 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 	function newcon_expr = mid_con_eval_fcn(con_fcn)
 		newcon_expr = con_fcn(mid_states, sym_inputs, [], []);
 	end
-	phase = process_constraints(phase, opt_params, sym_duration, colloc_con, @mid_con_eval_fcn);
+	[phase,hcons] = process_constraints(phase, opt_params, sym_duration, colloc_con, @mid_con_eval_fcn);
+
+	disp('		Combining cost and constraint hessians')
+	phase.hess = finalize_hessian(opt_params, hcost, hcons);
 
 	% Define a few useful functions.
 	% For simplicity, we inject them directly into the outputs from the dynamic system function
@@ -356,7 +385,7 @@ function phase = setup_dircol_trapz(phase, dynsys_fcn)
 		dcost_expr = sym_dt * trapz(cost_fcn(sym_states, sym_inputs, [], []))/3 + ...
 		             sym_dt * sum(cost_fcn(mid_states, mid_inputs, [], [])) * 2/3;
 	end
-	[phase.cost,cost_expr] = sum_costs(phase.dynsys.costs, opt_params, @trapz_cost_fcn);
+	[phase.cost,hcost] = sum_costs(phase.dynsys.costs, opt_params, @trapz_cost_fcn);
 
 	% Generate collocation constraint
 	disp('		Creating and processing constraints')
@@ -367,7 +396,10 @@ function phase = setup_dircol_trapz(phase, dynsys_fcn)
 	function newcon_expr = trapz_con_eval_fcn(con_fcn)
 		newcon_expr = con_fcn(sym_states, sym_inputs, [], []);
 	end
-	phase = process_constraints(phase, opt_params, sym_duration, colloc_con, @trapz_con_eval_fcn);
+	[phase,hcons] = process_constraints(phase, opt_params, sym_duration, colloc_con, @trapz_con_eval_fcn);
+
+	disp('		Combining cost and constraint hessians')
+	phase.hess = finalize_hessian(opt_params, hcost, hcons);
 
 	% Define a few useful functions.
 	% For simplicity, we inject them directly into the outputs from the dynamic system function
@@ -405,7 +437,7 @@ end
 
 % This function iterates through and sums up the costs.
 % You need to pass in a cost function, since this varies by solver type
-function [cost_fcn,cost_expr] = sum_costs(costs, opt_params, solver_cost_fcn)
+function [cost_fcn,hcost] = sum_costs(costs, opt_params, solver_cost_fcn)
 	disp('		Creating phase cost expression')
 	cost_expr = sym(0);
 	for itercost = 1:numel(costs)
@@ -416,4 +448,8 @@ function [cost_fcn,cost_expr] = sum_costs(costs, opt_params, solver_cost_fcn)
 	end
 	disp('		Converting phase cost expression to a function')
 	cost_fcn = matlabFunction(cost_expr, 'vars', {opt_params});
+
+	% Go ahead and generate the hessian of the cost
+	disp('		Generating sparse hessian of phase cost')
+	hcost = traj_gen_sparse_hess(opt_params, 1, jacobian(cost_fcn, opt_params));
 end

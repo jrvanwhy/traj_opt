@@ -2,21 +2,25 @@
 % the hessian is in terms of, the lambdas (may be symbolic or numeric), and
 % the jacobian of the value
 
+% If necessary, this function could be made faster by computing the nonzero columns and
+% elements from a sparse jacobian, rather than a full jacobian. At this time, that doesn't
+% seem to be worth the effort, however
+
 function hess = traj_gen_sparse_hess(params, lambdas, jac)
 	% Multiply the lambdas and the jacobian to get the jacobian of the
 	% sum of the lambdas times the functions
-	sum_jac = lambdas.' * jac
+	sum_jac = lambdas.' * jac;
 
 	% Extract the nonzero column numbers and values
-	[~,nonzero_cols,nonzero_elems] = find(sum_jac)
+	[~,nonzero_cols,nonzero_elems] = find(sum_jac);
 
 	% Compute the hessian (only nonzero rows)
-	red_hess = jacobian(nonzero_elems, params)
+	red_hess = jacobian(nonzero_elems, params);
 
 	% Convert reduced hessian to a sparse hessian
-	hess.mn = numel(params)
-	[hess.i,hess.j,hess.s] = find(red_hess)
+	hess.mn = numel(params);
+	[hess.i,hess.j,hess.s] = find(red_hess);
 
 	% Create non-reduced hessian by filling in the zero rows
-	hess.i = nonzero_cols(hess.i)
+	hess.i = nonzero_cols(hess.i);
 end
