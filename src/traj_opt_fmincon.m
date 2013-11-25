@@ -72,7 +72,7 @@ function [scenario,success] = run_opt_fmincon(scenario, noopt_params)
 	scenario.opt_fmincon.output_structs = {};
 
 	% Our initial point
-	x0 = ones(scenario.n_params, 1);
+	x0 = scenario.x0;
 
 	% Count of minimum-seeking iterations
 	seek_iters = 0;

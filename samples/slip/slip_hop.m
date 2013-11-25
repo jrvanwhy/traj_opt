@@ -87,7 +87,11 @@ end
 
 % This is the scenario function. It takes in a scenario that is populated with symbolic values, and imposes additional constraints
 % and costs upon the scenario.
-function [start_state_con,end_state_con] = scenario_fcn(scenario)
+function [start_state_con,end_state_con,init_dur] = scenario_fcn(scenario)
+	% Basic system parameters
+	mass         = 59.9; % Mass of the SLIP in kg
+	spring_const = 6543; % Spring constant on N/m
+
 	% Touchdown parameters
 	g         = 9.81;                % Gravitational accel, m/s²
 	td_hgt    = .8;                  % Height at touchdown
@@ -97,4 +101,7 @@ function [start_state_con,end_state_con] = scenario_fcn(scenario)
 	% Constrain the starting state to match our given touchdown conditions, and our ending state to be its "opposite".
 	start_state_con = traj_create_constraint('Starting state', scenario.phases{1}.states(:,1),   '=', [td_hgt; -td_spd; 0]);
 	end_state_con   = traj_create_constraint('Ending state',   scenario.phases{1}.states(:,end), '=', [td_hgt;  td_spd; 0]);
+
+	% Set the initial duration to be half the period of one hop
+	init_dur = traj_set_initval(scenario.phases{1}.duration, pi / sqrt(spring_const/mass));
 end

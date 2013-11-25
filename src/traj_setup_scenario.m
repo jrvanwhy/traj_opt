@@ -243,6 +243,11 @@ function scenario = gen_optfcns(scenario, scenario_fcn)
 		jcon_m                      = size(jcon_expr, 1);
 		[jcon_i,jcon_j,jcon_s_expr] = find(jcon_expr);
 
+		% Make them column vectors
+		jcon_i      = jcon_i(:);
+		jcon_j      = jcon_j(:);
+		jcon_s_expr = jcon_s_expr(:);
+
 		if con.con_type == '<='
 			c_expr                  = [c_expr;                   con_expr                      ];
 			jc_s_expr               = [jc_s_expr;                jcon_s_expr                   ];
@@ -289,8 +294,24 @@ function scenario = gen_optfcns(scenario, scenario_fcn)
 		scenario.optfcns.hess = gen_hessian(scenario, opt_params, scenfun_cost, scenfun_jc, scenfun_jceq);
 	end
 
+	% Generate the initial guess
+	scenario.x0 = gen_x0(scenario.scenfun, opt_params);
+
 	disp('	Cleaning up symbolic variables')
 	syms opt_params clear
+end
+
+% This function generates the initial guess
+function x0 = gen_x0(scenfun, opt_params)
+	x0 = ones(numel(opt_params), 1);
+
+	% Iterate through the initial values, setting the relevant
+	% parameters
+	for iterinit = 1:numel(scenfun.init_params)
+		param = scenfun.init_params(iterinit);
+		value = scenfun.init_vals(iterinit);
+		x0(logical(param == opt_params)) = value;
+	end
 end
 
 % Sets up parameter maps for the phases
@@ -326,6 +347,15 @@ function scenario = process_scenario_fcn(scenario, scenario_fcn, opt_params)
 	% Initialize scenario function fields
 	scenario.scenfun.constraints = {};
 	scenario.scenfun.costs       = {};
+	scenario.scenfun.init_params = sym([]);
+	scenario.scenfun.init_vals   = [];
+
+	% Set initial durations to 1, to avoid infeasibility of the linearized parameters
+	for iterphase = 1:numel(scenario.phases)
+		phase = scenario.phases{iterphase};
+		scenario.scenfun.init_params(end+1) = phase.duration;
+		scenario.scenfun.init_vals(end+1)   = 1;
+	end
 
 	% Iterate through the costs and constraints, adding them to phases
 	disp('	Adding costs and constraints to scenario function representation.')
@@ -360,6 +390,11 @@ function scenario = process_scenario_fcn(scenario, scenario_fcn, opt_params)
 				output.fcn = matlabFunction(output.fcn, 'vars', ...
 					{opt_params});
 				scenario.scenfun.costs{end+1} = output;
+
+			case 'initval'
+				% Simply append its parameter and value to the initial values lists
+				scenario.scenfun.init_params = [scenario.scenfun.init_params; output.params];
+				scenario.scenfun.init_vals   = [scenario.scenfun.init_vals;   output.values];
 
 			otherwise
 				% Spit out an error -- this is not an acceptable structure type
