@@ -327,9 +327,9 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 
 	% Generate collocation constraint
 	disp('		Creating and processing constraints')
+	dstates = phase.dynsys.dx(mid_states, sym_inputs, [], []);
 	colloc_con = traj_create_constraint('collocation', ...
-		sym_dt * phase.dynsys.dx(mid_states, sym_inputs, [], []), '=', ...
-		sym_states(:,2:end) - sym_states(:,1:end-1));
+		sym_dt * dstates, '=', sym_states(:,2:end) - sym_states(:,1:end-1));
 
 	function newcon_expr = mid_con_eval_fcn(con_fcn)
 		newcon_expr = con_fcn(mid_states, sym_inputs, [], []);
@@ -344,6 +344,7 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 	disp('		Processing functions')
 	phase.functions = phase.dynsys.functions;
 	phase.functions{end+1} = traj_create_function('states', sym_states);
+	phase.functions{end+1} = traj_create_function('dstates', dstates);
 	phase.functions{end+1} = traj_create_function('inputs', sym_inputs);
 	phase.functions{end+1} = traj_create_function('duration', sym_duration);
 
