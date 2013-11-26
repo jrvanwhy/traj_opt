@@ -1,13 +1,7 @@
 % This function runs a numerical optimization using MATLAB's fmincon function
-
-function [scenario,success] = traj_opt_fmincon(scenario, noopt_params)
-	% Run the optimization
-	[scenario, success] = run_opt_fmincon(scenario, noopt_params);
-end
-
-% This function runs the optimization for the given scenario, returning the scenario with optimization
+% It runs the optimization for the given scenario, returning the scenario with optimization
 % results in at as well as whether or not the optimization was successful
-function [scenario,success] = run_opt_fmincon(scenario, noopt_params)
+function [scenario,success] = traj_opt_fmincon(scenario, noopt_params)
 	% We use proxy functions both to deal with noopt_params and to
 	% deal with the varying number of output arguments fmincon expects.
 	function [obj,gobj] = obj_fcn(params)
