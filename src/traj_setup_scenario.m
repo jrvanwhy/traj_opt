@@ -412,32 +412,40 @@ function mat_out = simplify_sparse(mat_in)
 	% Initialize mat_out
 	mat_out.i = [];
 	mat_out.j = [];
-	mat_out.s = sym([]);
 	mat_out.m = mat_in.m;
 	mat_out.n = mat_in.n;
 
 	% Create a sparse matrix to hold the indices of the expressions
 	indxs = sparse(mat_in.m, mat_in.n);
 
+	% Current output position counter
+	cur_pos = 1;
+
 	% Go through the indices, removing duplicate entries
 	for iter = 1:numel(mat_in.i)
 		cur_i = mat_in.i(iter);
 		cur_j = mat_in.j(iter);
-		cur_s = mat_in.s(iter);
 
 		% Check if there's already an expression for this entry
 		cur_indx = indxs(cur_i, cur_j);
-		if cur_indx ~= 0
-			% Add it to the existing expression for this location
-			mat_out.s(cur_indx) = mat_out.s(cur_indx) + cur_s;
-		else
+		if cur_indx == 0
 			% It's new; just append it
 			mat_out.i(end+1) = cur_i;
 			mat_out.j(end+1) = cur_j;
-			mat_out.s(end+1) = cur_s;
 
 			% and record the index of this entry
-			indxs(cur_i, cur_j) = iter;
+			indxs(cur_i, cur_j) = cur_pos;
+			cur_pos = cur_pos + 1;
 		end
+	end
+
+	% Pre-alloc mat_out.s
+	mat_out.s = sym(zeros(size(mat_out.i)));
+	% Do the setup for the symbolic matrix output
+	for iter = 1:numel(mat_in.i)
+		cur_i = mat_in.i(iter);
+		cur_j = mat_in.j(iter);
+		cur_indx = indxs(cur_i, cur_j);
+		mat_out.s(cur_indx) = mat_out.s(cur_indx) + mat_in.s(iter);
 	end
 end
