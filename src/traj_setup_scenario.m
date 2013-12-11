@@ -111,7 +111,7 @@ end
 
 % This function generates the initial guess
 function x0 = gen_x0(init_params, init_vals, opt_params)
-	x0 = zeros(numel(opt_params), 1);
+	x0 = ones(numel(opt_params), 1);
 
 	% Iterate through the initial values, setting the relevant
 	% parameters

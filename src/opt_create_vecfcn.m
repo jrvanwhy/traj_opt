@@ -25,14 +25,24 @@ function vecfcn = opt_create_vecfcn(expr, param_nums, sym_params, derivs)
 	end
 
 	% Generate the fields for the jacobian
-	jac_expr       = jacobian(expr, sym_params);
+	% If sym_params is empty, work around a crash in jacobian()
+	if isempty(sym_params)
+		jac_expr = sym(zeros(1, 0));
+	else
+		jac_expr = jacobian(expr, sym_params);
+	end
 	vecfcn.jac_fcn = matlabFunction(jac_expr, 'vars', {sym_params});
 
 	% Generate the hessian. This requires generating the relevant symbolic lambda values
 	lambdas = sym('h', [numel(expr) 1]);
 
 	% Correctly multiply the lambdas with the jacobian to get the hessian of the lagrangian
-	hess_expr       = jacobian(lambdas.' * jac_expr, sym_params);
+	% Again, we need to work around symbolic engine issues if lambdas is empty
+	if isempty(lambdas)
+		hess_expr = sym(zeros(0, 0));
+	else
+		hess_expr = jacobian(lambdas.' * jac_expr, sym_params);
+	end
 	vecfcn.hess_fcn = matlabFunction(hess_expr, 'vars', {sym_params, lambdas});
 
 	% Clean up after ourself
