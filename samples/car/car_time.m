@@ -33,6 +33,10 @@ function scenario = car_time(n_intervals)
 	                                 [],                       ...
 	                                 'midpoint');
 
+	% Debugging
+	scenario = phase;
+	return
+
 	% This sets up the scenario. We pass a name (optional, not used here),  the scenario function
 	% (optional), and each phase for the scenario (in order).
 	% If multiple phases with the same name are passed, this will automatically append "_N" to their name, where
