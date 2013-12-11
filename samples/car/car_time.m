@@ -33,15 +33,14 @@ function scenario = car_time(n_intervals)
 	                                 [],                       ...
 	                                 'midpoint');
 
-	% Debugging
-	scenario = phase;
-	return
-
 	% This sets up the scenario. We pass a name (optional, not used here),  the scenario function
 	% (optional), and each phase for the scenario (in order).
 	% If multiple phases with the same name are passed, this will automatically append "_N" to their name, where
 	% N is an increasing positive integer.
 	scenario = traj_setup_scenario(@scenario_fcn, phase);
+
+	% Debugging
+	return
 
 	% Run the optimization
 	% This returns the scenario and a success flag (also stored in the scenario)

@@ -3,6 +3,7 @@ function scenario = traj_eval_funcs(scenario, opt_params, noopt_params)
 	% Go through each phase. Add each function in each phase to the phase as a symbolic variable
 	% As an example, this is what generates the states field of phases
 	for iter_phase = 1:numel(scenario.phases)
+		% Convenience variable
 		phase = scenario.phases{iter_phase};
 
 		disp(['	Processing phase ''' phase.names.phase ''''])
@@ -14,25 +15,28 @@ function scenario = traj_eval_funcs(scenario, opt_params, noopt_params)
 			iter_fcn = phase.functions{iter};
 			disp(['		Processing function ''' iter_fcn.name ''''])
 
-			phase.(iter_fcn.name) = iter_fcn.fcn(phase_params);
+			% Call the function using our vecfcn library
+			phase.(iter_fcn.name) = opt_eval_vecfcn(iter_fcn.fcn, phase_params);
 		end
 
-		% Add on time representations
-		disp('		Adding time representations')
+		% Iterate separately to add time representations, as they require that the duration
+		% have already been processed
 		for iter = 1:numel(phase.functions)
-			iter_fcn          = phase.functions{iter};
+			iter_fcn = phase.functions{iter};
 
-			% Skip duration; it's special
+			% Don't add on the time representation for the duration
+			% function
 			if strcmp(iter_fcn.name, 'duration')
 				continue
 			end
 
-			time_name         = ['t_' iter_fcn.name];
-			% Time spacing depends on the ODE solver type
-			switch phase.technique
-				case 'trapezoidal'
-					phase.(time_name) = phase.duration * linspace(0, 1, 1+phase.n_intervals);
+			disp(['		Adding time representation for function ''' iter_fcn.name ''''])
 
+			% The name of the corresponding time function
+			time_name = ['t_' iter_fcn.name];
+
+			% Add on the time representation. The time spacing depends on the ODE solver type
+			switch phase.technique
 				case 'midpoint'
 					% States are different from everything else
 					if strcmp(iter_fcn.name, 'states')
@@ -47,6 +51,23 @@ function scenario = traj_eval_funcs(scenario, opt_params, noopt_params)
 			end
 		end
 
+		% Copy the phase back over, since phase was produced purely for convenience
 		scenario.phases{iter_phase} = phase;
 	end
+end
+
+% This function evaluates the given vecfcn with the given parameters
+function vals = opt_eval_vecfcn(vecfcn, params)
+	% Create the parameters matrix with the correct dimensions
+	vecparams    = zeros(size(vecfcn.params));
+
+	% Make sure we don't crash if params is symbolic
+	if ~isnumeric(params)
+		vecparams = sym(vecparams);
+	end
+
+	vecparams(:) = params(vecfcn.params);
+
+	% Call the function (it's that easy!)
+	vals = vecfcn.fcn(vecparams);
 end
