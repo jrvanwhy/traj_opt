@@ -218,17 +218,18 @@ function scenario = process_scenario_fcn(scenario, scenario_fcn)
 	end
 
 	% Generate the cost and constraint vecfcns
+	% param_nums is the numeric list of parameters (representing each
+	% call (only 1) of the scenario function functions).
+	param_nums = (1:scenario.n_params).';
+
 	disp('	Creating scenario function cost vecfcn')
-	[cost_params,sym_cost_params] = find_vars(symvar(cost), opt_params);
-	scenario.scenfun.cost = opt_create_vecfcn(cost, cost_params, sym_cost_params);
+	scenario.scenfun.cost = opt_create_vecfcn(cost, param_nums, opt_params);
 
 	disp('	Creating scenario function inequality constraint vecfcn')
-	[c_params,sym_c_params] = find_vars(symvar(c), opt_params);
-	scenario.scenfun.c = opt_create_vecfcn(c, c_params, sym_c_params);
+	scenario.scenfun.c = opt_create_vecfcn(c, param_nums, opt_params);
 
 	disp('	Creating scenario function equality constraint vecfcn')
-	[ceq_params,sym_ceq_params] = find_vars(symvar(ceq), opt_params);
-	scenario.scenfun.ceq = opt_create_vecfcn(ceq, ceq_params, sym_ceq_params);
+	scenario.scenfun.ceq = opt_create_vecfcn(ceq, param_nums, opt_params);
 
 	% Create the initial guess using the user's supplied initial values
 	disp('	Creating initial guess')

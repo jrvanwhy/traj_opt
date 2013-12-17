@@ -15,6 +15,30 @@ function vecfcn = opt_create_vecfcn(expr, param_nums, sym_params, derivs)
 	% Initialize the structure
 	vecfcn.n_vals = numel(expr);
 
+	% Handle the jacobian first, as it is used for simplification
+	if derivs
+		% Take the jacobian, working around a crash in jacobian()
+		% that occurs when the parameters list is empty
+		if isempty(sym_params)
+			jac_expr = sym(zeros(vecfcn.n_vals, 0));
+		else
+			jac_expr = jacobian(expr, sym_params);
+		end
+
+		% Identify parameters used in expr
+		% To do this, we find nonzero columns in the jacobian
+		% First, we identify nonzero cells in the jacobian
+		nz_cells = logical(jac_expr ~= 0);
+
+		% Then sum each column and compare with 0 to find nonzero columns
+		nz_cols = (sum(nz_cells, 1)) ~= 0;
+
+		% Reduce the parameters list to only include those parameters actually in
+		% the function
+		param_nums = param_nums(nz_cols,:);
+		sym_params = sym_params(nz_cols);
+	end
+
 	% Generate the fields for the function values themselves
 	vecfcn.params = param_nums;
 	vecfcn.fcn    = matlabFunction(expr, 'vars', {sym_params});
@@ -24,13 +48,13 @@ function vecfcn = opt_create_vecfcn(expr, param_nums, sym_params, derivs)
 		return
 	end
 
-	% Generate the fields for the jacobian
-	% If sym_params is empty, work around a crash in jacobian()
-	if isempty(sym_params)
-		jac_expr = sym(zeros(1, 0));
-	else
-		jac_expr = jacobian(expr, sym_params);
-	end
+	% The Jacobian was generated earlier, but for the full list of
+	% symbolic parameters. To get the jacobian function for the
+	% vecfcn structure, we need to remove the columns that don't correspond
+	% with any variables
+	jac_expr = jac_expr(:, nz_cols);
+
+	% Create the jacobian anonymous function
 	vecfcn.jac_fcn = matlabFunction(jac_expr, 'vars', {sym_params});
 
 	% Generate the hessian. This requires generating the relevant symbolic lambda values

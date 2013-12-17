@@ -311,11 +311,11 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 	% States and duration are special; deal with them separately
 	phase.functions{end+1} = traj_create_function('states', sym_states(:,1));
 	phase.functions{end}.fcn = opt_create_vecfcn(phase.functions{end}.fcn, ...
-		state_params, sym_states(:,1));
+		state_params, sym_states(:,1), false);
 
 	phase.functions{end+1} = traj_create_function('duration', sym_duration);
 	phase.functions{end}.fcn = opt_create_vecfcn(phase.functions{end}.fcn, ...
-		duration_param, sym_duration);
+		duration_param, sym_duration, false);
 
 	% Clean up symbolic variables
 	disp('	Cleaning up symbolic variables')
