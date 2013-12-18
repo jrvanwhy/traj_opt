@@ -107,6 +107,8 @@ function [scenario,success] = traj_opt_fmincon(scenario, noopt_params, iterfcn)
 	                   'HessFcn',         @hess_fcn,        ...
 	                   'GradObj',         'on',             ...
 	                   'GradConstr',      'on',             ...
+	                   'DerivativeCheck', 'off',            ...
+	                   'FinDiffType',     'central',        ...
 	                   'OutputFcn',       iterfcn);
 	if isfield(scenario, 'fmincon') && isfield(scenario.fmincon, 'options')
 		disp('	Using user-supplied options')
@@ -122,7 +124,7 @@ function [scenario,success] = traj_opt_fmincon(scenario, noopt_params, iterfcn)
 		scenario.opt_fmincon.max_possible_iters = 30;
 	end
 	if ~isfield(scenario.opt_fmincon, 'max_found_iters')
-		scenario.opt_fmincon.max_found_iters = 0;
+		scenario.opt_fmincon.max_found_iters = 1;
 	end
 
 	% Reset the outputs
@@ -141,7 +143,7 @@ function [scenario,success] = traj_opt_fmincon(scenario, noopt_params, iterfcn)
 	possible_iters = 0;
 
 	% Count of "local minimum found" iterations
-	found_iters = 1;
+	found_iters = 0;
 
 	% We loop here, calling fmincon repeatedly. Resetting the optimization seems to give better results; also, if rerun after a
 	% "local minimum possible" output, it often finds a the local minimum to a higher accuracy. Also, this loop allows for more

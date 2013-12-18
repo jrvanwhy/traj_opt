@@ -176,6 +176,7 @@ function scenario = process_scenario_fcn(scenario, scenario_fcn)
 	opt_params = sym('x', [scenario.n_params 1]);
 
 	% Add the symbolic outputs for each function to the scenario
+	disp('	Symbolically evaluating functions')
 	scenario = traj_eval_funcs(scenario, opt_params, []);
 
 	% Call the scenario function, capturing all output arguments
