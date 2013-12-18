@@ -141,7 +141,7 @@ function [scenario,success] = traj_opt_fmincon(scenario, noopt_params, iterfcn)
 	possible_iters = 0;
 
 	% Count of "local minimum found" iterations
-	found_iters = 0;
+	found_iters = 1;
 
 	% We loop here, calling fmincon repeatedly. Resetting the optimization seems to give better results; also, if rerun after a
 	% "local minimum possible" output, it often finds a the local minimum to a higher accuracy. Also, this loop allows for more
