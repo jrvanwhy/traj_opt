@@ -18,7 +18,7 @@
 
 function constraint = traj_create_constraint(name, lside, type, rside)
 	% Error checking
-	if size(lside) ~= size(rside)
+	if numel(lside) ~= numel(rside)
 		error('lside and rside of constraint must have equal sizes')
 	end
 

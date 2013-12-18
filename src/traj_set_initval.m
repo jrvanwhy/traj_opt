@@ -15,4 +15,7 @@ function strout = traj_set_initval(params, values)
 	% Copy over parameters and values (replicating values if necessary)
 	strout.params                  = params(:);
 	strout.values(1:numel(params)) = values(:);
+
+	% Reorient strout.values to be a column vector
+	strout.values = strout.values(:);
 end
