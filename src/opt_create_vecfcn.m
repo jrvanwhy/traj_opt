@@ -3,72 +3,129 @@
 % to a large number of parameters at a time. This library deals
 % with calling the function appropriately and determining
 % its derivatives
-% The derivs argument controls whether derivatives should be computed
+% The gen_derivs argument controls whether derivatives should be computed
 % It defaults to true if not specified
 
-function vecfcn = opt_create_vecfcn(expr, param_nums, sym_params, derivs)
+function vecfcn = opt_create_vecfcn(expr, param_nums, sym_params, gen_derivs)
 	% Default derivs to true if not given
 	if nargin < 4
-		derivs = true;
+		gen_derivs = true;
 	end
 
-	% Initialize the structure
-	vecfcn.n_vals = numel(expr);
+	% Evaluate the jacobian. Whether or not derivatives are desired,
+	% we do need to know which outputs are constant for gen_vecable_fcn,
+	% so we need to evaluate the jacobian either way
+	jac = jacobian(expr, sym_params);
 
-	% Handle the jacobian first, as it is used for simplification
-	if derivs
-		% Take the jacobian, working around a crash in jacobian()
-		% that occurs when the parameters list is empty
-		if isempty(sym_params)
-			jac_expr = sym(zeros(vecfcn.n_vals, 0));
-		else
-			jac_expr = jacobian(expr, sym_params);
-		end
+	% The next two steps identify the unused parameters
+	% Identify the nonzero jacobian values
+	jac_nz = logical(jac ~= 0);
+	% Identify the parameters in use
+	used_params = sum(jac_nz, 1) ~= 0;
 
-		% Identify parameters used in expr
-		% To do this, we find nonzero columns in the jacobian
-		% First, we identify nonzero cells in the jacobian
-		nz_cells = logical(jac_expr ~= 0);
-
-		% Then sum each column and compare with 0 to find nonzero columns
-		nz_cols = (sum(nz_cells, 1)) ~= 0;
-
-		% Reduce the parameters list to only include those parameters actually in
-		% the function
-		param_nums = param_nums(nz_cols,:);
-		sym_params = sym_params(nz_cols);
-	end
-
-	% Generate the fields for the function values themselves
-	vecfcn.params = param_nums;
-	vecfcn.fcn    = matlabFunction(expr, 'vars', {sym_params});
-
-	% Exit now if we don't care about derivatives
-	if ~derivs
-		return
-	end
-
-	% The Jacobian was generated earlier, but for the full list of
-	% symbolic parameters. To get the jacobian function for the
-	% vecfcn structure, we need to remove the columns that don't correspond
-	% with any variables
-	jac_expr = jac_expr(:, nz_cols);
-
-	% Create the jacobian anonymous function
-	vecfcn.jac_fcn = matlabFunction(jac_expr, 'vars', {sym_params});
-
-	% Generate the hessian. This requires generating the relevant symbolic lambda values
-	lambdas = sym('h', [numel(expr) 1]);
-
-	% Correctly multiply the lambdas with the jacobian to get the hessian of the lagrangian
-	% Again, we need to work around symbolic engine issues if lambdas is empty
-	if isempty(lambdas)
-		hess_expr = sym(zeros(0, 0));
+	% Remove the unused parameters and update the jacobian and other
+	% calculated values
+	param_nums = param_nums(used_params, :);
+	if numel(used_params) > 0
+		sym_params = sym_params(used_params, :);
+		jac        = jac(:, used_params);
 	else
-		hess_expr = jacobian(lambdas.' * jac_expr, sym_params);
+		sym_params = sym([]);
+		jac        = sym(zeros(numel(expr), 0));
 	end
-	vecfcn.hess_fcn = matlabFunction(hess_expr, 'vars', {sym_params, lambdas});
+	jac_nz     = jac_nz(:, used_params);
 
-	% Clean up after ourself
-	syms lambdas clear
+	% Store the updated param_nums into vecfcn
+	vecfcn.param_nums = param_nums;
+
+	% The number of times this will be evaluated
+	n_evals = size(param_nums, 2);
+
+	% Generate the vecable function for this function's output
+	vecfcn.fcn = gen_vecable_fcn(expr, {sym_params}, n_evals, jac_nz);
+
+	% If the user doesn't want derivatives, then we're done
+	if ~gen_derivs
+		return;
+	end
+
+	% Generate the local i, j, and s values for the jacobian
+	% Note that we need to work around a bug in find that
+	% makes it crash when it finds a symbolic integer
+	[jac_loc_i,jac_loc_j] = find(jac_nz);
+	jac_loc_s = jac(sub2ind(size(jac), jac_loc_i, jac_loc_j));
+	jac_loc_s = jac_loc_s(:);
+
+	% Generate the vecable jac_loc_s
+	vecfcn.jac_s = gen_vecable_fcn(jac_loc_s, {sym_params}, n_evals, ...
+		logical(jacobian(jac_loc_s, sym_params) ~= 0));
+
+	% Generate the full i for the jacobian
+	outs_map     = zeros(numel(expr), n_evals);
+	outs_map(:)  = 1:numel(outs_map);
+	vecfcn.jac_i = outs_map(jac_loc_i, :);
+	vecfcn.jac_i = vecfcn.jac_i(:);
+
+	% Generate the full j for the jacobian
+	vecfcn.jac_j = param_nums(jac_loc_j, :);
+	vecfcn.jac_j = vecfcn.jac_j(:);
+
+	% Done generating the jacobian, time for the hessian
+
+	% Generate the lambdas
+	lambdas = sym('l', [numel(expr) 1]);
+
+	% Create the jacobian of the lagrangian by multiplying the lambdas
+	% and the jacobian then summing each column
+	if numel(jac) > 0
+		lagr_jac = sum(lambdas.' * jac, 1);
+	else
+		lagr_jac = sym([]);
+	end
+
+	% Calculate the hessian by taking the jacobian of the jacobian
+	hess = jacobian(lagr_jac, sym_params);
+
+	% Locate the nonzero elements of the hessian
+	[hess_loc_i,hess_loc_j,hess_loc_s] = find(hess);
+
+	% Generate the vecable hess_loc_s
+	vecfcn.hess_s = gen_vecable_fcn(hess_loc_s, {sym_params, lambdas}, n_evals, ...
+		logical(jacobian(hess_loc_s, [sym_params; lambdas]) ~= 0));
+
+	% Generate the full i and j vectors for the hessian
+	vecfcn.hess_i = param_nums(hess_loc_i, :);
+	vecfcn.hess_j = param_nums(hess_loc_j, :);
+	vecfcn.hess_i = vecfcn.hess_i(:);
+	vecfcn.hess_j = vecfcn.hess_j(:);
+
+	% Clean up symbolic parameters, if necessary
+	syms lambdas clear;
+end
+
+% This creates a structure representing a vectorizable function
+% It is essentially a workaround for the fact that functions
+% generated by matlabFunction with constant outputs produce an error
+% if evaluated in a vectorized manner
+function fcn_struct = gen_vecable_fcn(expr, sym_params, n_evals, jac_nz)
+	% Finally, sum the nonzero cells to find nonzero rows
+	nc_outs = sum(jac_nz, 2) ~= 0;
+
+	% Store nc_outs into fcn_struct; this forms the nonconstant output map
+	fcn_struct.nc_outs = nc_outs;
+
+	% Create the constant output matrix
+	% This contains zeros in place of the other outputs,
+	% to facilitate calling this vectorizable function
+	fcn_struct.const_outs             = zeros(numel(expr), n_evals);
+	% Work around issues if nc_outs has zero size
+	if numel(nc_outs) ~= 0
+		fcn_struct.const_outs(~nc_outs,:) = expr(~nc_outs,:) * ones(1, n_evals);
+
+		% Create the nonconstant output function
+		fcn_struct.nc_fcn = matlabFunction(expr(nc_outs,:), 'vars', sym_params);
+	else
+		% Dummy function that returns a zero value
+		fcn_struct.nc_fcn = matlabFunction(sym(0), 'vars', sym_params);
+	end
 end

@@ -92,21 +92,33 @@ function scenario = combine_optfcns(scenario)
 	scenario.c     = {scenario.scenfun.c};
 	scenario.ceq   = {scenario.scenfun.ceq};
 
+	% We need to shift the optfcns's parameter maps to make multiple
+	% phases work correctly
+	param_count = 0;
+
+	% Same for the outputs
+	cost_shift = 1;
+	c_shift    = numel(scenario.scenfun.c.fcn.const_outs);
+	ceq_shift  = numel(scenario.scenfun.ceq.fcn.const_outs);
+
 	% Iterate through the phases, copying the functions from each phase
 	for iterphase = 1:numel(scenario.phases)
 		phase = scenario.phases{iterphase};
 		disp(['	Combining functions from phase ''' phase.names.phase ''''])
 
 		% Copy over costs, c, and ceq
-		scenario.costs{end+1} = phase.cost;
-		scenario.c{end+1}     = phase.c;
-		scenario.ceq{end+1}   = phase.ceq;
-	end
-end
+		scenario.costs{end+1} = opt_shift_vecfcn(phase.cost, cost_shift, param_count);
+		scenario.c{end+1}     = opt_shift_vecfcn(phase.c,    c_shift,    param_count);
+		scenario.ceq{end+1}   = opt_shift_vecfcn(phase.ceq,  ceq_shift,  param_count);
 
-% This function finds variables within the optimization parameters
-function [locs,vars] = find_vars(vars, opt_params)
-	[vars,~,locs] = intersect(vars, opt_params, 'R2012a');
+		% Increase param_count to prepare for the next phase
+		param_count = param_count + phase.n_params;
+
+		% Same for the output shifts
+		cost_shift = cost_shift + 1;
+		c_shift    = c_shift    + numel(scenario.c{end}.fcn.const_outs);
+		ceq_shift  = ceq_shift  + numel(scenario.ceq{end}.fcn.const_outs);
+	end
 end
 
 % This function generates the initial guess
@@ -120,6 +132,16 @@ function x0 = gen_x0(init_params, init_vals, opt_params)
 		value = init_vals(iterinit);
 		x0(logical(param == opt_params)) = value;
 	end
+end
+
+% This function "shifts" a vecfcn by the given amount, changing it to operate
+% on a different set of parameters and a different set of outputs
+function vecfcn = opt_shift_vecfcn(vecfcn, out_shift, param_shift)
+	vecfcn.param_nums = vecfcn.param_nums + param_shift;
+	vecfcn.jac_i      = vecfcn.jac_i      + out_shift;
+	vecfcn.jac_j      = vecfcn.jac_j      + param_shift;
+	vecfcn.hess_i     = vecfcn.hess_i     + param_shift;
+	vecfcn.hess_j     = vecfcn.hess_j     + param_shift;
 end
 
 % Sets up parameter maps for the phases

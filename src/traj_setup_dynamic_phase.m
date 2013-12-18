@@ -110,7 +110,7 @@ function phase = traj_setup_dynamic_phase(name, dynsys_fcn, state, input, n_inte
 	% Set the technique
 	phase.technique = technique;
 
-	% Do setup (currently, we only have trapezoidal direct collocation)
+	% Do setup (currently, we only have Crank-Nicolson direct collocation)
 	phase = setup_ode_solver(phase, dynsys_fcn);
 
 	% Let the user know when this function terminates
@@ -214,10 +214,11 @@ function phase = call_dynsys_fcn(phase, dynsys_fcn, sym_state, sym_input, sym_ad
 end
 
 % Generate the symbolic parameters for the optimization
-function [sym_states,sym_inputs,sym_duration] = gen_params(state_size, state_grid, input_size, input_grid)
-	sym_states   = sym('x', [state_size state_grid]);
-	sym_inputs   = sym('u', [input_size input_grid]);
-	sym_duration = sym('d', 'real');
+function [sym_states,sym_inputs,sym_duration,sym_add_params] = gen_params(state_size, state_grid, input_size, input_grid, add_params_size)
+	sym_states     = sym('x', [state_size state_grid]);
+	sym_inputs     = sym('u', [input_size input_grid]);
+	sym_duration   = sym('d', 'real');
+	sym_add_params = sym('a', [add_params_size 1]);
 end
 
 % This function sets up for midpoint-based direct collocation
@@ -226,15 +227,16 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 
 	% Set up states, inputs, and duration
 	disp('		Creating symbolic parameters')
-	[sym_states,sym_inputs,sym_duration] =  ...
+	[sym_states,sym_inputs,sym_duration,sym_add_params] =  ...
 		gen_params(numel(phase.names.state), 2, ...
-		           numel(phase.names.input), 1);
+		           numel(phase.names.input), 1, ...
+		           numel(phase.names.add_params));
 
 	% Set up dt
 	sym_dt = sym_duration/phase.n_intervals;
 
 	% Generate dynamic system function expressions.
-	phase = call_dynsys_fcn(phase, dynsys_fcn, sym_states(:,1), sym_inputs(:,1), sym([]), sym([]));
+	phase = call_dynsys_fcn(phase, dynsys_fcn, sym_states(:,1), sym_inputs(:,1), sym_add_params, sym([]));
 
 	% Generate important intermediate values
 	mid_states = (sym_states(:,1:end-1) + sym_states(:,2:end))/2;
@@ -243,30 +245,34 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 	disp('		Creating parameter mappings')
 	state_params    = zeros(numel(phase.names.state), phase.n_intervals+1);
 	input_params    = zeros(numel(phase.names.input), phase.n_intervals);
+	add_params      = zeros(numel(phase.names.add_params), 1);
 	state_params(:) = 1:numel(state_params);
 	n_params        = numel(state_params);
 	input_params(:) = n_params+1:n_params+numel(input_params);
 	n_params        = n_params + numel(input_params);
 	duration_param  = n_params + 1;
-	n_params        = n_params + 1;
+	n_params        = n_params + numel(duration_param);
+	add_params(:)   = n_params+1:n_params+numel(add_params);
+	n_params        = n_params + numel(add_params);
 	phase.n_params  = n_params;
 
 	intvl_params = [ state_params(:,1:end-1)
 	                 state_params(:,2:end)
 	                 input_params
-	                 duration_param * ones(1, phase.n_intervals) ];
+	                 [duration_param; add_params] * ones(1, phase.n_intervals) ];
 	sym_intvl_params = [ sym_states(:,1)
 	                     sym_states(:,2)
 	                     sym_inputs
-	                     sym_duration ];
+	                     sym_duration
+	                     sym_add_params ];
 
 	% Generate cost
-	phase_cost = sym_dt * phase.dynsys.cost(mid_states, sym_inputs, [], []);
+	phase_cost = sym_dt * phase.dynsys.cost(mid_states, sym_inputs, sym_add_params, []);
 	phase.cost = opt_create_vecfcn(phase_cost, intvl_params, sym_intvl_params);
 
 	disp('		Creating and processing constraints')
-	c   = phase.dynsys.c(  mid_states, sym_inputs, [], []);
-	ceq = phase.dynsys.ceq(mid_states, sym_inputs, [], []);
+	c   = phase.dynsys.c(  mid_states, sym_inputs, sym_add_params, []);
+	ceq = phase.dynsys.ceq(mid_states, sym_inputs, sym_add_params, []);
 
 	% Generate nonnegative duration constraint
 	c = [c; -sym_duration];
@@ -275,7 +281,7 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 	phase.c = opt_create_vecfcn(c, intvl_params, sym_intvl_params);
 
 	% Generate collocation constraint
-	dstates = phase.dynsys.dx(mid_states, sym_inputs, [], []);
+	dstates = phase.dynsys.dx(mid_states, sym_inputs, sym_add_params, []);
 	ceq = [ceq; sym_dt * dstates + sym_states(:,1) - sym_states(:,2)];
 
 	% Create equality constraint vector function
@@ -297,7 +303,7 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 
 		% Evaluate the function expression, if necessary
 		if isa(cur_fcn.fcn, 'function_handle')
-			cur_fcn.fcn = cur_fcn.fcn(mid_states, sym_inputs, [], []);
+			cur_fcn.fcn = cur_fcn.fcn(mid_states, sym_inputs, sym_add_params, []);
 		end
 
 		% Create a vecfcn form; make it simple because this isn't used
@@ -308,7 +314,7 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 		phase.functions{end+1} = cur_fcn;
 	end
 
-	% States and duration are special; deal with them separately
+	% States, duration, and add_params are special; deal with them separately
 	phase.functions{end+1} = traj_create_function('states', sym_states(:,1));
 	phase.functions{end}.fcn = opt_create_vecfcn(phase.functions{end}.fcn, ...
 		state_params, sym_states(:,1), false);
@@ -316,6 +322,10 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 	phase.functions{end+1} = traj_create_function('duration', sym_duration);
 	phase.functions{end}.fcn = opt_create_vecfcn(phase.functions{end}.fcn, ...
 		duration_param, sym_duration, false);
+
+	phase.functions{end+1} = traj_create_function('add_params', sym_add_params);
+	phase.functions{end}.fcn = opt_create_vecfcn(phase.functions{end}.fcn, ...
+		add_params, sym_add_params, false);
 
 	% Clean up symbolic variables
 	disp('	Cleaning up symbolic variables')

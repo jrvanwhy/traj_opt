@@ -4,52 +4,67 @@
 function [scenario,success] = traj_opt_fmincon(scenario, noopt_params, iterfcn)
 	% These are the functions fmincon calls
 	function [obj,gobj] = obj_fcn(params)
-		% Iterate through the cost functions, summing them and their jacobians
-		obj  = 0;
-		jobj = sparse(1, scenario.n_params);
+		% Iterate through the cost functions, summing them and generating their jacobian
+		obj    = 0;
+		jobj_j = [];
+		jobj_s = [];
 		for iterfcn = 1:numel(scenario.costs)
 			cur_cost = scenario.costs{iterfcn};
 			obj      = obj + sum(opt_eval_vecfcn(cur_cost, params));
-			jobj     = jobj + sum(opt_eval_vecfcn_jac(cur_cost, params), 1);
+			[~,cur_jobj_j,cur_jobj_s] = opt_eval_vecfcn_jac(cur_cost, params);
+			jobj_j = [jobj_j; cur_jobj_j];
+			jobj_s = [jobj_s; cur_jobj_s];
 		end
 
-		% The "gradient" is actually the transpose of the jacobian
-		gobj = jobj.';
+		gobj = sparse(jobj_j, ones(numel(jobj_j), 1), jobj_s, numel(params), 1);
 	end
 	function [c,ceq,gc,gceq] = constr_fcn(params)
 		% Like for the cost, we need to iterate through the functions to call them all
-		c   = [];
-		jc  = sparse(0, scenario.n_params);
+		c    = [];
+		jc_i = [];
+		jc_j = [];
+		jc_s = [];
 		for iterfcn = 1:numel(scenario.c)
 			cur_c      = scenario.c{iterfcn};
 			cur_c_val  = opt_eval_vecfcn(cur_c, params);
 			c          = [c; cur_c_val(:)];
-			cur_jc_val = opt_eval_vecfcn_jac(cur_c, params);
-			jc         = [jc; cur_jc_val];
+			[cur_jc_i,cur_jc_j,cur_jc_s] = opt_eval_vecfcn_jac(cur_c, params);
+			jc_i = [jc_i; cur_jc_i];
+			jc_j = [jc_j; cur_jc_j];
+			jc_s = [jc_s; cur_jc_s];
 		end
 
-		ceq  = [];
-		jceq = sparse(0, scenario.n_params);
+		ceq    = [];
+		jceq_i = [];
+		jceq_j = [];
+		jceq_s = [];
 		for iterfcn = 1:numel(scenario.ceq)
 			cur_ceq      = scenario.ceq{iterfcn};
 			cur_ceq_val  = opt_eval_vecfcn(cur_ceq, params);
 			ceq          = [ceq; cur_ceq_val(:)];
-			cur_jceq_val = opt_eval_vecfcn_jac(cur_ceq, params);
-			jceq         = [jceq; cur_jceq_val];
+			[cur_jceq_i,cur_jceq_j,cur_jceq_s] = opt_eval_vecfcn_jac(cur_ceq, params);
+			jceq_i = [jceq_i; cur_jceq_i];
+			jceq_j = [jceq_j; cur_jceq_j];
+			jceq_s = [jceq_s; cur_jceq_s];
 		end
 
 		% The "gradient" is just the jacobian's transpose
-		gc   = jc.';
-		gceq = jceq.';
+		gc   = sparse(jc_j,   jc_i,   jc_s,   numel(params), numel(c));
+		gceq = sparse(jceq_j, jceq_i, jceq_s, numel(params), numel(ceq));
 	end
 	function hessian = hess_fcn(params, lambda)
-		% Initialize hessian
-		hessian = sparse(scenario.n_params, scenario.n_params);
+		% Initialize hessian arrays
+		hess_i = [];
+		hess_j = [];
+		hess_s = [];
 
 		% Start by computing the hessian for each cost
 		for itercost = 1:numel(scenario.costs)
 			cur_cost = scenario.costs{itercost};
-			hessian  = hessian + opt_eval_vecfcn_hess(cur_cost, params);
+			[cur_hess_i,cur_hess_j,cur_hess_s] = opt_eval_vecfcn_hess(cur_cost, params);
+			hess_i = [hess_i; cur_hess_i];
+			hess_j = [hess_j; cur_hess_j];
+			hess_s = [hess_s; cur_hess_s];
 		end
 
 		% Then add on the inequality constraint hessians
@@ -57,9 +72,11 @@ function [scenario,success] = traj_opt_fmincon(scenario, noopt_params, iterfcn)
 		for iterc = 1:numel(scenario.c)
 			cur_c         = scenario.c{iterc};
 			cur_lambdas   = lambda.ineqnonlin(lineqpos+1:end);
-			[c_hess,ladv] = opt_eval_vecfcn_hess(cur_c, params, cur_lambdas);
-			hessian       = hessian + c_hess;
-			lineqpos      = lineqpos + ladv;
+			[cur_hess_i,cur_hess_j,cur_hess_s] = opt_eval_vecfcn_hess(cur_c, params, cur_lambdas);
+			hess_i = [hess_i; cur_hess_i];
+			hess_j = [hess_j; cur_hess_j];
+			hess_s = [hess_s; cur_hess_s];
+			lineqpos      = lineqpos + numel(cur_c.fcn.const_outs);
 		end
 
 		% Last, add on the equality constraint hessians
@@ -67,10 +84,15 @@ function [scenario,success] = traj_opt_fmincon(scenario, noopt_params, iterfcn)
 		for iterceq = 1:numel(scenario.ceq)
 			cur_ceq         = scenario.ceq{iterceq};
 			cur_lambdas     = lambda.eqnonlin(leqpos+1:end);
-			[ceq_hess,ladv] = opt_eval_vecfcn_hess(cur_ceq, params, cur_lambdas);
-			hessian         = hessian + ceq_hess;
-			leqpos          = leqpos + ladv;
+			[cur_hess_i,cur_hess_j,cur_hess_s] = opt_eval_vecfcn_hess(cur_ceq, params, cur_lambdas);
+			hess_i = [hess_i; cur_hess_i];
+			hess_j = [hess_j; cur_hess_j];
+			hess_s = [hess_s; cur_hess_s];
+			leqpos          = leqpos + numel(cur_ceq.fcn.const_outs);
 		end
+
+		% Generate the hessian
+		hessian = sparse(hess_i, hess_j, hess_s, numel(params), numel(params));
 	end
 
 	% Default iterfcn to empty
@@ -178,62 +200,60 @@ function [scenario,success] = traj_opt_fmincon(scenario, noopt_params, iterfcn)
 	scenario.soln = scenario.opt_fmincon.soln(:,end);
 end
 
-% This function evalutes the hessian of the lagrangian of the given vecfcn.
+% This function evaluates the hessian of the lagrangian of the given vecfcn.
 % If you don't supply lambdas, it will default to all ones
-function [hess_out,out_pos] = opt_eval_vecfcn_hess(fcn_in, params, lambdas)
+% It returns the i, j, and s values for the matrix (it's sparse)
+function [hess_i,hess_j,hess_s] = opt_eval_vecfcn_hess(fcn_in, params, lambdas)
 	% Initialize lambdas if not given
 	if nargin < 3
-		lambdas = ones(fcn_in.n_vals * size(fcn_in.params, 2), 1);
+		lambdas = ones(numel(fcn_in.fcn.const_outs), 1);
 	end
 
-	% Initialize the hessian
-	hess_out = sparse(numel(params), numel(params));
+	% Grab the right parameters in the right shape
+	vecparams    = zeros(size(fcn_in.param_nums));
+	vecparams(:) = params(fcn_in.param_nums);
 
-	% Set up initial output position
-	out_pos = 0;
+	% Copy over the i and j vectors
+	hess_i = fcn_in.hess_i;
+	hess_j = fcn_in.hess_j;
 
-	% Iterate through each "equivalent function call", evaluating the hessian for each
-	for iterout = 1:size(fcn_in.params, 2)
-		% Parameters for this call
-		call_params = fcn_in.params(:,iterout);
+	% Initialize hess_s using the constant outputs matrix
+	hess_s = fcn_in.hess_s.const_outs;
 
-		% Grab the correct lambdas and update out_pos
-		% Properly index into lambdas
-		lambda_idxs     = out_pos+1:out_pos+fcn_in.n_vals;
-		call_lambdas    = lambda_idxs.';
-		call_lambdas(:) = lambdas(lambda_idxs);
-		out_pos         = out_pos + fcn_in.n_vals;
+	% Reshape the lambdas to be the right shape
+	lambdas_new    = zeros(size(fcn_in.fcn.const_outs));
+	lambdas_new(:) = lambdas(1:numel(lambdas_new));
 
-		% Evaluate the hessian
-		param_vals    = zeros(size(call_params));
-		param_vals(:) = params(call_params);
-		call_hess     = fcn_in.hess_fcn(param_vals, call_lambdas);
-
-		% Update the sparse hessian
-		hess_out(call_params, call_params) = hess_out(call_params, call_params) + call_hess;
+	% Add in the nonconstant s values
+	if nnz(fcn_in.hess_s.nc_outs) > 0
+		hess_s(fcn_in.hess_s.nc_outs,:) = fcn_in.hess_s.nc_fcn(vecparams, lambdas_new);
 	end
+
+	% Reshape s into a column vector
+	hess_s = hess_s(:);
 end
 
 % This function evaluates the jacobian of the given vectorized
 % function at a given point
-function jval = opt_eval_vecfcn_jac(fcn_in, params)
-	% Initialize the jacobian
-	jval = sparse(size(fcn_in.params, 2) * fcn_in.n_vals, numel(params));
+% It returns the i, j, and s values for the matrix
+function [jac_i,jac_j,jac_s] = opt_eval_vecfcn_jac(fcn_in, params)
 
-	% Iterate through each "equivalent function call",
-	% evaluating the jacobian for each
-	for iterout = 1:size(fcn_in.params, 2)
-		% Parameters for this call
-		call_params = fcn_in.params(:,iterout);
+	% Grab the right parameters in the right shape
+	vecparams    = zeros(size(fcn_in.param_nums));
+	vecparams(:) = params(fcn_in.param_nums);
 
-		% Evaluate the jacobian
-		jac_params = zeros(size(call_params));
-		jac_params(:) = params(call_params);
-		call_jac = fcn_in.jac_fcn(jac_params);
+	% Copy over the i and j vectors
+	jac_i = fcn_in.jac_i;
+	jac_j = fcn_in.jac_j;
 
-		% Update the full jacobian values for this output
-		rows = (size(call_jac, 1) * (iterout-1) + 1):(size(call_jac, 1) * iterout);
-		cols = call_params;
-		jval(rows,cols) = call_jac;
+	% Initialize jac_s using the constant outputs matrix
+	jac_s = fcn_in.jac_s.const_outs;
+
+	% Add in the nonconstant s values
+	if nnz(fcn_in.jac_s.nc_outs) > 0
+		jac_s(fcn_in.jac_s.nc_outs,:) = fcn_in.jac_s.nc_fcn(vecparams);
 	end
+
+	% Reshape s into a column vector
+	jac_s = jac_s(:);
 end
