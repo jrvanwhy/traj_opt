@@ -1,19 +1,15 @@
 function scenario = traj_eval_funcs(scenario, opt_params, noopt_params)
-	disp('Evaluating functions')
 	% Go through each phase. Add each function in each phase to the phase as a symbolic variable
 	% As an example, this is what generates the states field of phases
 	for iter_phase = 1:numel(scenario.phases)
 		% Convenience variable
 		phase = scenario.phases{iter_phase};
 
-		disp(['	Processing phase ''' phase.names.phase ''''])
-
 		% Parameters for this phase
 		phase_params = opt_params(scenario.param_map(1,iter_phase):scenario.param_map(2,iter_phase));
 
 		for iter = 1:numel(phase.functions)
 			iter_fcn = phase.functions{iter};
-			disp(['		Processing function ''' iter_fcn.name ''''])
 
 			% Call the function using our vecfcn library
 			phase.(iter_fcn.name) = opt_eval_vecfcn(iter_fcn.fcn, phase_params);
@@ -29,8 +25,6 @@ function scenario = traj_eval_funcs(scenario, opt_params, noopt_params)
 			if strcmp(iter_fcn.name, 'duration')
 				continue
 			end
-
-			disp(['		Adding time representation for function ''' iter_fcn.name ''''])
 
 			% The name of the corresponding time function
 			time_name = ['t_' iter_fcn.name];

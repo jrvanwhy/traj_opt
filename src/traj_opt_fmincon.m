@@ -1,7 +1,7 @@
 % This function runs a numerical optimization using MATLAB's fmincon function
 % It runs the optimization for the given scenario, returning the scenario with optimization
 % results as well as whether or not the optimization was successful
-function [scenario,success] = traj_opt_fmincon(scenario, noopt_params)
+function [scenario,success] = traj_opt_fmincon(scenario, noopt_params, iterfcn)
 	% These are the functions fmincon calls
 	function [obj,gobj] = obj_fcn(params)
 		% Iterate through the cost functions, summing them and their jacobians
@@ -73,13 +73,19 @@ function [scenario,success] = traj_opt_fmincon(scenario, noopt_params)
 		end
 	end
 
+	% Default iterfcn to empty
+	if nargin < 3
+		iterfcn = [];
+	end
+
 	% Optimization options
 	options = optimset('Algorithm',       'interior-point', ...
 	                   'Display',         'iter',           ...
 	                   'Hessian',         'user-supplied',  ...
 	                   'HessFcn',         @hess_fcn,        ...
 	                   'GradObj',         'on',             ...
-	                   'GradConstr',      'on');
+	                   'GradConstr',      'on',             ...
+	                   'OutputFcn',       iterfcn);
 	if isfield(scenario, 'fmincon') && isfield(scenario.fmincon, 'options')
 		disp('	Using user-supplied options')
 		options = optimset(options, scenario.fmincon.options);
