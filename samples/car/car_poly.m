@@ -17,8 +17,7 @@
 % Also, the number of "intervals" for the dynamics representation (equivalent to timesteps for an ODE solver)
 % is a parameter of this function.
 function scenario = car_poly(n_intervals, poly_deg)
-	% Define the additional parameters -- these are the fourier coefficients
-	% (and a duration parameter for scaling, since time-variant systems aren't supported yet)
+	% Define the additional parameters -- these are the polynomial coefficients
 	add_params = {};
 	for iter = 0:poly_deg
 		add_params{end+1} = ['poly' num2str(iter)];

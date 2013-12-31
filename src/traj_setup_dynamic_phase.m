@@ -267,6 +267,7 @@ function phase = setup_dircol_midpoint(phase, dynsys_fcn)
 	                     sym_add_params ];
 
 	% Generate cost
+	disp('		Generating cost vecfcn')
 	phase_cost = sym_dt * phase.dynsys.cost(mid_states, sym_inputs, sym_add_params, []);
 	phase.cost = opt_create_vecfcn(phase_cost, intvl_params, sym_intvl_params);
 

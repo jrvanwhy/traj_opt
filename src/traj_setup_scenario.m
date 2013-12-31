@@ -123,11 +123,14 @@ end
 
 % This function generates the initial guess
 function x0 = gen_x0(init_params, init_vals, opt_params)
-	x0 = zeros(numel(opt_params), 1);
+	disp('		Creating blank initial guess vector')
+	x0 = ones(numel(opt_params), 1);
 
 	% Iterate through the initial values, setting the relevant
 	% parameters
+	disp(['		Iterating through each of ' num2str(numel(init_params)) ' initial parameter values'])
 	for iterinit = 1:numel(init_params)
+		disp(['			Processing parameter ' num2str(iterinit)])
 		param = init_params(iterinit);
 		value = init_vals(iterinit);
 		x0(logical(param == opt_params)) = value;
