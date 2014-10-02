@@ -1,22 +1,20 @@
 clear all
-nodes = 100;
+nodes = 300;
 prob  = OptTool;
 
-pos_var = prob.newVar('pos', .5 * ones(nodes-4, 1));
-pos = [0; 0; pos_var; 1; 1];
-t   = prob.newVar('t', 1);
+pos         = prob.newVar('pos', .5 * ones(nodes, 1));
+u           = prob.newVar('u',   zeros(nodes, 1), -1, 1);
+T           = prob.newVar('T',   1                  );
+[vel,accel] = diffTraj(pos, T);
 
-dt = t/(nodes-1);
+prob.addCon(accel,    '==', u);
+prob.addCon(vel(1),   '==', 0);
+prob.addCon(vel(end), '==', 0);
+prob.addCon(pos(1),   '==', 0);
+prob.addCon(pos(end), '==', 1);
 
-vel = (pos(2:end) - pos(1:end-1))/dt;
-
-accel = (vel(2:end) - vel(1:end-1))/dt;
-
-prob.addObj(t)
-
-prob.addCon(accel, '<=',  1)
-prob.addCon(accel, '>=', -1)
+prob.addObj(T)
 
 prob.solve
 
-pos_soln = prob.getVar(pos_var);
+pos_soln = prob.getVar(pos);

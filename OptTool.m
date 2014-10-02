@@ -109,9 +109,9 @@ classdef OptTool < handle
 			spjac.j = spjac.j + curjac.n;
 
 			% Append/update jacobian expressions
-			curjac.i = [curjac.i; spjac.i];
-			curjac.j = [curjac.j; spjac.j];
-			curjac.s = [curjac.s; spjac.s];
+			curjac.i = [curjac.i; spjac.i(:)];
+			curjac.j = [curjac.j; spjac.j(:)];
+			curjac.s = [curjac.s; spjac.s(:)];
 			curjac.n = curjac.n + spjac.n;
 
 			% Apply the updated jacobian to "this"
@@ -130,7 +130,7 @@ classdef OptTool < handle
 		% returns:
 		%     soln: The solution for this variable
 		function soln = getVar(this, var)
-			soln = this.soln(find(logical(this.varmap(1,:) == var(1))) + (1:numel(var)) - 1);
+			soln = this.soln(this.varmap(2,find(logical(this.varmap(1,:) == var(1)))) + (1:numel(var)) - 1);
 		end
 
 		% Evaluates a sparse function
