@@ -1,3 +1,6 @@
+% Copyright (C) 2014 Johnathan Van Why
+% See LICENSE.txt for details
+
 clear all
 nodes = 30;
 prob  = OptTool;

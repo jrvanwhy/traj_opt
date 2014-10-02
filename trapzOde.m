@@ -1,3 +1,6 @@
+% Copyright (C) 2014 Johnathan Van Why
+% See LICENSE.txt for details
+
 % This function implements the Trapezoidal method for solving ODES.
 % It adds a constraint to the given problem to enforce the derivative/integral relationship
 %

@@ -1,3 +1,6 @@
+% Copyright (C) 2014 Johnathan Van Why
+% See LICENSE.txt for details
+
 % This function differentiates a trajectory as a function of time.
 % It optionally creates second derivatives as well.
 %
