@@ -133,6 +133,36 @@ classdef OptTool < handle
 			soln = this.soln(this.varmap(2,find(logical(this.varmap(1,:) == var(1)))) + (1:numel(var)) - 1);
 		end
 
+		% Generates a function for later (repeated evaluation).
+		% This is faster than just calling evalFcn repeatedly after solving a problem
+		%
+		% Params:
+		%     expr    The function (as a symbolic expression)
+		%
+		% Returns a handle to the function to pass to evalFcn
+		function fcn = genFcn(this, expr)
+			% Simple anonymous function creation
+			fcn = matlabFunction(expr, 'vars', {this.vars});
+		end
+
+		% Evaluates a function (gets the solution to the function).
+		% May be called with a symbolic expression (takes as long as genFcn) or
+		% a handle created by genFcn (fast)
+		%
+		% params:
+		%     fcn    The function to be evaluated (symbolic expression or genFcn handle)
+		%
+		% Returns the value of the function evaluated at the problem's solution
+		function val = evalFcn(this, fcn)
+			% Generate a handle with genFcn if this is a symbolic variable
+			if isa(fcn, 'sym')
+				fcn = this.genFcn(fcn);
+			end
+
+			% Direct evaluation at the solution
+			val = fcn(this.soln);
+		end
+
 		% Evaluates a sparse function
 		function val = eval_sparse(this, spfcn, vars)
 			% Evaluate the elements
