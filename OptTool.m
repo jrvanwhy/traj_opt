@@ -143,12 +143,18 @@ classdef OptTool < handle
 		end
 
 		% Computes a sparse symbolic jacobian (transposed, because fmincon wants gradients transposed)
-		function spjac = sparse_jacobian(this, expr, vars)
+		function spjac = sparse_jacobian(~, expr, vars)
 			disp('Evaluating full jacobian')
 			jac = jacobian(expr, vars);
 
 			disp('Locating nonzero jacobian entries')
-			[spjac.j,spjac.i,spjac.s] = find(jac);
+			% We convert the symbolic matrix into a logical one with ones
+			% where nonzero symbolic expressions are. This is faster than calling
+			% find() on a symbolic matrix -- and more robust, IIRC.
+			nzs               = logical(jac ~= 0);
+			[spjac.j,spjac.i] = find(nzs);
+			spjac.s           = jac(sub2ind(size(jac), spjac.j, spjac.i));
+
 			disp([num2str(numel(spjac.i)) ' entries found'])
 
 			disp('Storing jacobian dimensions')
@@ -254,10 +260,12 @@ classdef OptTool < handle
 		ceqjac  = struct('i', [], 'j', [], 's', sym([]), 'm', 0, 'n', 0);
 
 		% Fmincon options
-		options = optimset('Algorithm',  'interior-point', ...
-		                   'Display',    'iter',           ...
-		                   'GradObj',    'on',             ...
-		                   'GradConstr', 'on');
+		options = optimset('Algorithm',           'interior-point', ...
+		                   'Display',             'iter',           ...
+		                   'GradObj',             'on',             ...
+		                   'GradConstr',          'on',             ...
+		                   'Hessian',             'fin-diff-grads', ...
+		                   'SubproblemAlgorithm', 'cg');
 
 		% The solution fmincon returns
 		soln
