@@ -1,6 +1,8 @@
 % Copyright (C) 2014 Johnathan Van Why
 % See LICENSE.txt for details
 
+addpath('..')
+
 clear all
 nodes = 30;
 prob  = OptTool;
@@ -20,6 +22,8 @@ u = prob.newVar('u', zeros(nodes, 1), -1, 1);
 prob.addCon(accel, '==', u);
 
 prob.addObj(T)
+
+prob.setOptions('DerivativeCheck', 'on')
 
 prob.solve
 

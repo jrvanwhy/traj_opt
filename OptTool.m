@@ -85,6 +85,9 @@ classdef OptTool < handle
 			% calculate the gradient yet. With the objective, adding new terms does not
 			% affect gradient size, so it is most efficiently done in one big sweep.
 			this.obj = this.obj + expr;
+
+			% Record the current variable count -- this will speed up differentiation later on
+			this.nObjVars = numel(this.vars);
 		end
 
 		% Add is a constraint. Type should be one of '<=', '==', or '>='
@@ -192,9 +195,14 @@ classdef OptTool < handle
 		end
 
 		% Computes a sparse symbolic jacobian (transposed, because fmincon wants gradients transposed)
-		function spjac = sparse_jacobian(~, expr, vars)
+		function spjac = sparse_jacobian(this, expr, vars, nVars)
+			% Give nVars a default value.
+			if nargin < 4
+				nVars = numel(this.vars);
+			end
+
 			disp('Evaluating full jacobian')
-			jac = jacobian(expr, vars);
+			jac = jacobian(expr, vars(1:nVars));
 
 			disp('Locating nonzero jacobian entries')
 			% We convert the symbolic matrix into a logical one with ones
@@ -208,7 +216,7 @@ classdef OptTool < handle
 
 			disp('Storing jacobian dimensions')
 			spjac.n = size(jac, 1);
-			spjac.m = size(jac, 2);
+			spjac.m = numel(this.vars);
 			disp(['Dimensions: ' num2str(spjac.n) ' by ' num2str(spjac.m)])
 		end
 
@@ -264,7 +272,7 @@ classdef OptTool < handle
 
 			% Generate the jacobian of the objective function
 			disp('Generating objective jacobian')
-			this.objjac = this.sparse_jacobian(this.obj, this.vars);
+			this.objjac = this.sparse_jacobian(this.obj, this.vars, this.nObjVars);
 
 			disp('Generating anonymous jacobian evaluation function')
 			this.objjac.s = matlabFunction(this.objjac.s, 'vars', {this.vars});
@@ -305,8 +313,11 @@ classdef OptTool < handle
 		ceq@sym = sym([])
 		cfcn
 		ceqfcn
-		cjac    = struct('i', [], 'j', [], 's', sym([]), 'm', 0, 'n', 0);
-		ceqjac  = struct('i', [], 'j', [], 's', sym([]), 'm', 0, 'n', 0);
+		cjac    = struct('i', [], 'j', [], 's', sym([]), 'm', 0, 'n', 0)
+		ceqjac  = struct('i', [], 'j', [], 's', sym([]), 'm', 0, 'n', 0)
+
+		% The number of variables in the objective -- speeds up the objective constraint calculation
+		nObjVars = 0
 
 		% Fmincon options
 		options = optimset('Algorithm',           'interior-point', ...
