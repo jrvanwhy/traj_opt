@@ -23,8 +23,6 @@ prob.addCon(accel, '==', u);
 
 prob.addObj(T)
 
-prob.setOptions('DerivativeCheck', 'on')
-
 prob.solve
 
 plot(prob.evalFcn(pos))
