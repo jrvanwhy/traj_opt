@@ -225,6 +225,30 @@ classdef OptTool < handle
 			this.options = optimset(this.options, varargin{:});
 		end
 
+		% Computes the gradient of the Lagrangian. Used for the Hessian Multiply function
+		function ghess = lagr_grad(this, x, lambda)
+			ghess = this.eval_sparse(this.objjac, x)                     + ...
+			        this.eval_sparse(this.cjac,   x) * lambda.ineqnonlin + ...
+			        this.eval_sparse(this.ceqjac, x) * lambda.eqnonlin;
+		end
+
+		% Hessian*vector multiplication function for Fmincon.
+		% This uses that a Hessian*vector product is just the directional
+		% derivative of the gradient of the Lagrangian in the given direction.
+		function val = fmincon_hessMult(this, x, lambda, vec)
+			% Step length
+			ssize = eps^2;
+
+			% The length of the vector we are differentiating against.
+			vec_len = norm(vec);
+
+			% The step vector -- same direction as vec, but it has length ssize
+			step = vec * (ssize/vec_len);
+
+			% Complex step differentiation!
+			val = imag(this.lagr_grad(x + step * i, lambda))*(vec_len/ssize);
+		end
+
 		% Objective function called by fmincon
 		function [obj,gobj] = fmincon_obj(this, x)
 			% Simply forward the obj calculation to the objfcn handle
@@ -291,6 +315,10 @@ classdef OptTool < handle
 			disp('Finalizing equality constraint jacobian')
 			this.ceqjac.s = matlabFunction(this.ceqjac.s, 'vars', {this.vars});
 			this.ceqjac.m = numel(this.vars);
+
+			% Configure the Hessian multiply function, in case the user wants that functionality
+			disp('Configuring Hessian*vector multiply function')
+			this.setOptions('HessMult', @this.fmincon_hessMult)
 
 			% Finally, we call fmincon
 			disp('Starting Fmincon')
