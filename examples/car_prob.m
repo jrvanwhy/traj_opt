@@ -23,12 +23,4 @@ prob.addCon(accel, '==', u);
 
 prob.addObj(T)
 
-% Setting the Hessian option to user-supplied uses a Hessian*vector
-% multiply function inside OptTool. For some reason, this will cause
-% fmincon to fail on some problems (compared to the default setting,
-% 'fin-diff-grads'), but usually improves fmincon's performance.
-% Therefore, it defaults to off, but is a setting worth considering.
-% For this problem, however, this has a noticeable benefit
-prob.setOptions('Hessian', 'user-supplied')
-
 prob.solve

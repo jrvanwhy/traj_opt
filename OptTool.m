@@ -242,6 +242,13 @@ classdef OptTool < handle
 			% The length of the vector we are differentiating against.
 			vec_len = norm(vec);
 
+			% For some reason Fmincon's CG algorithm doesn't always terminate when it should...
+			% sometimes vec == 0 on small problems
+			if vec_len == 0
+				val = zeros(numel(x), 1);
+				return
+			end
+
 			% The step vector -- same direction as vec, but it has length ssize
 			step = vec * (ssize/vec_len);
 
@@ -316,7 +323,9 @@ classdef OptTool < handle
 			this.ceqjac.s = matlabFunction(this.ceqjac.s, 'vars', {this.vars});
 			this.ceqjac.m = numel(this.vars);
 
-			% Configure the Hessian multiply function, in case the user wants that functionality
+			% Configure the Hessian multiply function -- this could not be configured by default
+			% because it requires accessing this. I suppose this could be put into the constructor
+			% to make it user-definable.
 			disp('Configuring Hessian*vector multiply function')
 			this.setOptions('HessMult', @this.fmincon_hessMult)
 
@@ -352,7 +361,7 @@ classdef OptTool < handle
 		                   'Display',             'iter',           ...
 		                   'GradObj',             'on',             ...
 		                   'GradConstr',          'on',             ...
-		                   'Hessian',             'fin-diff-grads', ...
+		                   'Hessian',             'user-supplied',  ...
 		                   'SubproblemAlgorithm', 'cg');
 
 		% The solution fmincon returns
