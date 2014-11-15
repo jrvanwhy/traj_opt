@@ -24,3 +24,6 @@ prob.addCon(accel, '==', u);
 prob.addObj(T)
 
 prob.solve
+
+% Plot the optimal control input
+plot(prob.getVar(u))
