@@ -34,14 +34,28 @@ classdef VecExpr < handle
 		function self = VecExpr(otool, expr, idxs, vars)
 			% TODO: Handle idxs and vars-based inputs...
 
-			% Basic case -- just a symbolic expression with
-			% no indexing
+			% Generate the anonymous function for evaluating the objective itself
 			self.fcn = matlabFunction(expr, 'vars', {otool.vars});
+
+			% Create a sparse representation of the jacobian of each term
+			% in this vectorized expression. i is in terms of the term's subexpressions,
+			% j is in terms of otool.vars, and s is per unique derivative value
 			[jac_i, jac_j, jac_s] = find(jacobian(expr, otool.vars));
-			expr_size = max(otool.var_sizes(jac_j));
-			self.var_map = bsxfun(@plus, otool.var_start_idxs, (otool.var_sizes > 1).' * (0:(expr_size - 1)));
+
+			% Indices used in this vectorized expression
+			if nargin < 3
+				idxs = 1:max(otool.var_sizes(jac_j));
+			end
+
+			% Generate the variable map which maps optimization variables into inputs for
+			% self.fcn and self.jacfcn
+			self.var_map = bsxfun(@plus, otool.var_start_idxs, (otool.var_sizes > 1).' * (idxs - 1));
+
+			% Generate the jacobian function.
 			self.jacfcn = matlabFunction(jac_s(:), 'vars', {otool.vars});
-			full_jac_i = ones(numel(jac_s), 1) * (1:expr_size);
+
+			% Generate the indexing lists for the sparse representation of the jacobian
+			full_jac_i = ones(numel(jac_s), 1) * idxs;
 			self.jac_i = full_jac_i(:);
 			full_jac_j = self.var_map(jac_j, :);
 			self.jac_j = full_jac_j(:);
@@ -49,7 +63,7 @@ classdef VecExpr < handle
 
 		% Evaluator; evaluates the function at the given point
 		function val = eval(self, x)
-			val = self.fcn(x(self.var_map));
+			val = self.fcn(x(self.var_map)).';
 		end
 
 		% Jacobian evaluator; evaluates the jacobian of the function
