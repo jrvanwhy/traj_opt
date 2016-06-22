@@ -49,8 +49,6 @@ classdef OptTool < handle
 		%     ub       The variable's upper bound (optional -- use inf to specify no upper bound for a particular element)
 		%
 		% Returns a scalar symbolic expression representing this variable.
-		%
-		% TODO: Implement lb and ub
 		function expr = newVar(self, name, initVal, lb, ub)
 			% Basic diagnostics for the user
 			disp(['Creating variable ' name ' of size ' num2str(numel(initVal))]);
@@ -108,6 +106,11 @@ classdef OptTool < handle
 			val = sum(val);
 		end
 
+		% Set Fmincon options. This accepts the same arguments as optimset
+		function setOptions(self, varargin)
+			self.options = optimset(self.options, varargin{:});
+		end
+
 		% Solves the nonlinear optimization problem. This needs to be called
 		% after problem setup (adding variables, objectives, constraints, etc...)
 		% and before querying solution values.
@@ -116,7 +119,7 @@ classdef OptTool < handle
 			disp('Beginning OptTool.solve()');
 
 			disp('Starting Fmincon');
-			self.soln = fmincon(@self.fminconObj, self.x0);
+			self.soln = fmincon(@self.fminconObj, self.x0, [], [], [], [], [], [], [], self.options);
 		end
 	end
 
@@ -133,6 +136,11 @@ classdef OptTool < handle
 		% List of objectives (which will be summed to evaluate the final
 		% objective)
 		objs@VecExpr
+
+		% Fmincon options structure
+		options = optimset('Algorithm',           'interior-point', ...
+		                   'Display',             'iter',           ...
+		                   'SubproblemAlgorithm', 'cg');
 
 		% The solution value (as returned by the nonlinear programming solver)
 		soln@double
