@@ -75,7 +75,38 @@ classdef OptTool < handle
 		%     vars  A cell array of variables corresponding with idxs or with
 		%           the parameters of expr
 		function addObj(self, varargin)
+			% Diagnostic for the user
+			disp('Adding objective');
+
+			% Behind the scenes, make the VecExpr class do all the hard work
 			self.objs(end+1) = VecExpr(self, varargin{:});
+		end
+
+		% General VecExpr array evaluator
+		function vals = evalFcns(self, fcns, x)
+			vals = [];
+
+			for fcn = fcns
+				vals = [vals; fcn.eval(x)];
+			end
+		end
+
+		% Objective function for the fmincon solver
+		function val = fminconObj(self, x)
+			% Compute all of the objective values
+			val = self.evalFcns(self.objs, x);
+
+			% Sum up the objective values
+			val = sum(val);
+		end
+
+		% Solves the nonlinear optimization problem
+		function solve(self)
+			% User diagnostic
+			disp('Beginning OptTool.solve()');
+
+			disp('Starting Fmincon');
+			self.soln = fmincon(@self.fminconObj, self.x0);
 		end
 	end
 
@@ -92,5 +123,8 @@ classdef OptTool < handle
 		% List of objectives (which will be summed to evaluate the final
 		% objective)
 		objs@VecExpr
+
+		% The solution value (as returned by the nonlinear programming solver)
+		soln@double
 	end
 end

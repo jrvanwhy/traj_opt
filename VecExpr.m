@@ -38,6 +38,11 @@ classdef VecExpr < handle
 			% no indexing
 			self.fcn = matlabFunction(expr, 'vars', {otool.vars});
 		end
+
+		% Evaluator; evaluates the function at the given point
+		function val = eval(self, x)
+			val = self.fcn(x);
+		end
 	end
 
 	properties
