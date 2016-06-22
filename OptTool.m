@@ -57,8 +57,14 @@ classdef OptTool < handle
 			expr = sym([self.symvar_prefix name], 'real');
 
 			% Append this variable to the variable-related members
+			if ~isempty(self.vars)
+				self.var_start_idxs(end+1, 1) = self.var_start_idxs(end) + self.var_sizes(end);
+			else
+				self.var_start_idxs = 1;
+			end
+			self.var_sizes(end+1) = numel(initVal);
 			self.vars(end+1, 1) = expr;
-			self.x0 = [self.x0; initVal];
+			self.x0 = [self.x0; initVal(:)];
 		end
 
 		% Adds an expression to the problem objective.
@@ -83,27 +89,39 @@ classdef OptTool < handle
 		% General VecExpr array evaluator; for internal use.
 		%
 		% Parameters:
-		%     fcns  A cell array of VecExpr to evaluate
-		%     x     The point to evaluate at
+		%     fcns      A cell array of VecExpr to evaluate
+		%     x         The point to evaluate at
+		%     calc_jac  Whether or not to compute the jacobian. If false,
+		%               will return an empty jacobian. This parameter is a
+		%               convenience for the call sites
 		%
 		% Returns:
 		%     vals  All of the function outputs, vertically concatenated
-		function vals = evalFcns(self, fcns, x)
+		%     jac   The jacobian of the functions in terms of x
+		function [vals,jac] = evalFcns(self, fcns, x, calc_jac)
 			vals = [];
+			jac = sparse(0, numel(x));
 
 			for fcn = fcns
 				vals = [vals; fcn.eval(x)];
+
+				if calc_jac
+					jac = [jac; fcn.eval_jac(x)];
+				end
 			end
 		end
 
 		% Objective function for the fmincon solver. This function satisfies
 		% the interface required by fmincon
-		function val = fminconObj(self, x)
+		function [obj,gobj] = fminconObj(self, x)
 			% Compute all of the objective values
-			val = self.evalFcns(self.objs, x);
+			[obj,jobj] = self.evalFcns(self.objs, x, nargout >= 2);
 
 			% Sum up the objective values
-			val = sum(val);
+			obj = sum(obj);
+			if nargout >= 2
+				gobj = sum(jobj, 1).';
+			end
 		end
 
 		% Set Fmincon options. This accepts the same arguments as optimset
@@ -130,6 +148,10 @@ classdef OptTool < handle
 		% All of the symbolic variables associated with this problem instance.
 		vars@sym = sym([])
 
+		% Starting indices and sizes for the variables
+		var_start_idxs = []
+		var_sizes = []
+
 		% Initial guess for the solver for this problem
 		x0@double = []
 
@@ -139,7 +161,9 @@ classdef OptTool < handle
 
 		% Fmincon options structure
 		options = optimset('Algorithm',           'interior-point', ...
+		                   'DerivativeCheck',     'off',            ...
 		                   'Display',             'iter',           ...
+		                   'GradObj',             'on',             ...
 		                   'SubproblemAlgorithm', 'cg');
 
 		% The solution value (as returned by the nonlinear programming solver)

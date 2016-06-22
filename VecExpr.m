@@ -37,16 +37,40 @@ classdef VecExpr < handle
 			% Basic case -- just a symbolic expression with
 			% no indexing
 			self.fcn = matlabFunction(expr, 'vars', {otool.vars});
+			[jac_i, jac_j, jac_s] = find(jacobian(expr, otool.vars));
+			expr_size = max(otool.var_sizes(jac_j));
+			self.var_map = bsxfun(@plus, otool.var_start_idxs, (otool.var_sizes > 1).' * (0:(expr_size - 1)));
+			self.jacfcn = matlabFunction(jac_s(:), 'vars', {otool.vars});
+			full_jac_i = ones(numel(jac_s), 1) * (1:expr_size);
+			self.jac_i = full_jac_i(:);
+			full_jac_j = self.var_map(jac_j, :);
+			self.jac_j = full_jac_j(:);
 		end
 
 		% Evaluator; evaluates the function at the given point
 		function val = eval(self, x)
-			val = self.fcn(x);
+			val = self.fcn(x(self.var_map));
+		end
+
+		% Jacobian evaluator; evaluates the jacobian of the function
+		% at the given point.
+		function jac = eval_jac(self, x)
+			jac_s = self.jacfcn(x(self.var_map));
+			jac = sparse(self.jac_i, self.jac_j, jac_s(:), max(self.jac_i), numel(x));
 		end
 	end
 
 	properties
+		% Map between the optimization problem's variables and the opttool variables
+		var_map@double
+
 		% Anonymous function for evaluating this vectorized expression
 		fcn
+
+		% Anonymous function for evaluating the jacobian entries
+		% as well as the coordinates of the entries
+		jacfcn
+		jac_i@double
+		jac_j@double
 	end
 end
