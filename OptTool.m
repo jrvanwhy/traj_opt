@@ -67,6 +67,16 @@ classdef OptTool < handle
 			self.x0 = [self.x0; initVal(:)];
 		end
 
+		% Add a constraint to the problem. There are several ways to invoke this.
+		% The general idea is a series of expressions (symbolic group expressions,
+		% Expr objects, and function handles) separated by constraint type indicators,
+		% plus optionally separate indexing values (as the last argument).
+		%
+		% Idea: addCon(self, expr1, '<=', expr2, '==', expr3, idxs)
+		function addCon(self, varargin)
+			% TODO: This
+		end
+
 		% Adds an expression to the problem objective.
 		% If this expression is non-scalar, then its sum will be added
 		% to the problem objective.
@@ -82,14 +92,14 @@ classdef OptTool < handle
 			% Diagnostic for the user
 			disp('Adding objective');
 
-			% Behind the scenes, make the VecExpr class do all the hard work
-			self.objs(end+1) = VecExpr(self, varargin{:});
+			% Behind the scenes, make the ExprEvaluator class do all the hard work
+			self.objs(end+1) = ExprEvaluator(Expr(varargin{:}), self);
 		end
 
-		% General VecExpr array evaluator; for internal use.
+		% General ExprEvaluator array evaluator; for internal use.
 		%
 		% Parameters:
-		%     fcns      A cell array of VecExpr to evaluate
+		%     fcns      A cell array of ExprEvaluator to evaluate
 		%     x         The point to evaluate at
 		%     calc_jac  Whether or not to compute the jacobian. If false,
 		%               will return an empty jacobian. This parameter is a
@@ -124,6 +134,29 @@ classdef OptTool < handle
 			end
 		end
 
+		% Constraint function for the fmincon solver. This function satisfies
+		% the interface required by fmincon
+		function [c,ceq,gc,gceq] = fminconCons(self, x)
+			% Compute the constraint values, and jacobians if necessary.
+			[cons,jcons] = self.evalFcns(self.cons, x, nargout >= 3);
+
+			% Do the constraint mapping (as necessary for the number of outputs)
+			c = self.c_map * cons;
+			if nargout >= 2
+				ceq = self.ceq_map * cons;
+
+				if nargout >= 3
+					% The "gradient" as defined by fmincon is the transpose
+					% of the jacobian
+					gc = (self.c_map * jcons).';
+
+					if nargout >= 4
+						gceq = (self.ceq_map * jcons).';
+					end
+				end
+			end
+		end
+
 		% Set Fmincon options. This accepts the same arguments as optimoptions
 		function setOptions(self, varargin)
 			self.options = optimoptions(self.options, varargin{:});
@@ -137,7 +170,7 @@ classdef OptTool < handle
 			disp('Beginning OptTool.solve()');
 
 			disp('Starting Fmincon');
-			self.soln = fmincon(@self.fminconObj, self.x0, [], [], [], [], [], [], [], self.options);
+			self.soln = fmincon(@self.fminconObj, self.x0, [], [], [], [], [], [], @self.fminconCons, self.options);
 		end
 	end
 
@@ -157,16 +190,29 @@ classdef OptTool < handle
 
 		% List of objectives (which will be summed to evaluate the final
 		% objective)
-		objs@VecExpr
+		objs@ExprEvaluator
+
+		% Constraint functions. These will then be mapped into equality and
+		% inequality constraints.
+		cons@ExprEvaluator
+
+		% Inequality constraint index map. This is a sparse matrix that multiplies
+		% the output of cons to produce c
+		c_map = sparse([])
+
+		% Equality constraint index maps. This is a sparse matrix that multiplies the output
+		% of cons to produce ceq
+		ceq_map = sparse([])
 
 		% Fmincon options structure
 		options = optimoptions('fmincon', ...
-			'Algorithm',           'interior-point', ...
-			'DerivativeCheck',     'on',            ...
-			'Display',             'iter',           ...
-			'FiniteDifferenceType', 'central', ...
-			'GradObj',             'on',             ...
-			'SubproblemAlgorithm', 'cg');
+			'Algorithm',            'interior-point', ...
+			'DerivativeCheck',      'on',            ...
+			'Display',              'iter',           ...
+			'FiniteDifferenceType', 'central',        ...
+			'GradConstr',           'on',             ...
+			'GradObj',              'on',             ...
+			'SubproblemAlgorithm',  'cg');
 
 		% The solution value (as returned by the nonlinear programming solver)
 		soln@double

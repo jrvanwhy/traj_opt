@@ -20,49 +20,47 @@
 % inputs. It abstracts away differentiation and evaluation of
 % expressions for the OptTool class.
 
-classdef VecExpr < handle
+classdef ExprEvaluator < handle
 	methods
 		% Constructor. This handles the necessary indexing
 		% abstractions for OptTool.
 		%
 		% Parameters:
+		%     expr   The Expr object that this will evaluate
 		%     otool  A reference to the OptTool instance for symbolic
 		%            variable access.
-		%     expr   Symbolic expression, as in OptTool's functions
-		%     idxs   Indices list, as in OptTool's interface
-		%     vars   Variables list, also as in OptTool's API
-		function self = VecExpr(otool, expr, idxs, vars)
+		function self = ExprEvaluator(expr, otool)
 			% If the user passed in an anonymous function, switch out the variables
 			% in the function for dummy variables.
-			if nargin >= 4
-				fcn_vars = sym([otool.symvar_prefix 'var'], [numel(vars) 1]);
+			if ~isempty(expr.vars)
+				fcn_vars = sym([otool.symvar_prefix 'var'], [numel(expr.vars) 1]);
 				fcn_vars_cell = num2cell(fcn_vars);
-				expr = expr(fcn_vars_cell{:});
+				expr.expr = expr.expr(fcn_vars_cell{:});
 			else
 				fcn_vars = otool.vars;
 			end
 
 			% Generate the anonymous function for evaluating the objective itself
-			self.fcn = matlabFunction(expr, 'vars', {fcn_vars});
+			self.fcn = matlabFunction(expr.expr, 'vars', {fcn_vars});
 
 			% Create a sparse representation of the jacobian of each term
 			% in this vectorized expression. i is in terms of the term's subexpressions,
 			% j is in terms of fcn_vars, and s is per unique derivative value
-			[jac_i, jac_j, jac_s] = find(jacobian(expr, fcn_vars));
+			[jac_i, jac_j, jac_s] = find(jacobian(expr.expr, fcn_vars));
 
 			% Indices used in this vectorized expression
-			if nargin < 3
-				idxs = 1:max(otool.var_sizes(jac_j));
+			if isempty(expr.idxs)
+				expr.idxs = 1:max(otool.var_sizes(jac_j));
 			end
 
 			% Generate the variable map which maps optimization variables into inputs for
 			% self.fcn and self.jacfcn
-			if nargin >= 4
+			if ~isempty(expr.vars)
 				self.var_map = [];
 
 				% Handle the variables one at a time. We'll expand var_map as necessary
 				% while running this loop.
-				for var_idxs = idxs
+				for var_idxs = expr.idxs
 					% Handle a for loop peculiarity with cell arrays
 					var_idxs = var_idxs{1};
 
@@ -75,14 +73,14 @@ classdef VecExpr < handle
 					self.var_map = [self.var_map; var_idxs];
 				end
 			else
-				self.var_map = bsxfun(@plus, otool.var_start_idxs, (otool.var_sizes > 1).' * (idxs - 1));
+				self.var_map = bsxfun(@plus, otool.var_start_idxs, (otool.var_sizes > 1).' * (expr.idxs - 1));
 			end
 
 			% Generate the jacobian function.
 			self.jacfcn = matlabFunction(jac_s(:), 'vars', {fcn_vars});
 
 			% Generate the indexing lists for the sparse representation of the jacobian
-			full_jac_i = bsxfun(@plus, jac_i(:), numel(expr) * (1:size(self.var_map, 2)));
+			full_jac_i = bsxfun(@plus, jac_i(:), numel(expr.expr) * (1:size(self.var_map, 2)));
 			self.jac_i = full_jac_i(:);
 			full_jac_j = self.var_map(jac_j, :);
 			self.jac_j = full_jac_j(:);
