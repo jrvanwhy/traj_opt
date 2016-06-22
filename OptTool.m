@@ -82,7 +82,14 @@ classdef OptTool < handle
 			self.objs(end+1) = VecExpr(self, varargin{:});
 		end
 
-		% General VecExpr array evaluator
+		% General VecExpr array evaluator; for internal use.
+		%
+		% Parameters:
+		%     fcns  A cell array of VecExpr to evaluate
+		%     x     The point to evaluate at
+		%
+		% Returns:
+		%     vals  All of the function outputs, vertically concatenated
 		function vals = evalFcns(self, fcns, x)
 			vals = [];
 
@@ -91,7 +98,8 @@ classdef OptTool < handle
 			end
 		end
 
-		% Objective function for the fmincon solver
+		% Objective function for the fmincon solver. This function satisfies
+		% the interface required by fmincon
 		function val = fminconObj(self, x)
 			% Compute all of the objective values
 			val = self.evalFcns(self.objs, x);
@@ -100,7 +108,9 @@ classdef OptTool < handle
 			val = sum(val);
 		end
 
-		% Solves the nonlinear optimization problem
+		% Solves the nonlinear optimization problem. This needs to be called
+		% after problem setup (adding variables, objectives, constraints, etc...)
+		% and before querying solution values.
 		function solve(self)
 			% User diagnostic
 			disp('Beginning OptTool.solve()');
