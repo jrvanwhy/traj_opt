@@ -7,9 +7,9 @@ clear all
 
 nlp = OptTool;
 
-x = nlp.newVar('x', 0);
-y = nlp.newVar('y', 0);
+x = nlp.newVar('x', exp(1));
+y = nlp.newVar('y', pi);
 
-nlp.addObj((1 - x)^2 + 10 * (y - x^2)^2);
+nlp.addObj([(1 - x)^2, 100 * (y - x^2)^2]);
 
 nlp.solve;
