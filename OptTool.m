@@ -68,6 +68,8 @@ classdef OptTool < handle
 		end
 
 		% Add a constraint to the problem.
+		% This only accepts symbolic group constraints unless rexpr == 0
+		% and type is not '>=', in which case it accepts anything that addObj() accepts.
 		%
 		% Parameters:
 		%     lexpr  The expression on the left side of the constraint
@@ -83,6 +85,18 @@ classdef OptTool < handle
 
 			% Diagnostic for the user
 			disp('Adding constraint')
+
+			% Check if we are adding a raw constraint.
+			if isa(lexpr, 'Expr') && logical(rexpr == 0)
+				switch type
+					case '<='
+						self.c(end+1) = ExprEvaluator(lexpr, self);
+					case '=='
+						self.ceq(end+1) = ExprEvaluator(lexpr, self);
+				end
+
+				return
+			end
 
 			% Similarly to addObj(), we let ExprEvaluator do the work
 			switch type

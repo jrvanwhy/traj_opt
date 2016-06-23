@@ -40,8 +40,10 @@ classdef ExprEvaluator < handle
 				fcn_vars = otool.vars;
 			end
 
-			% Generate the anonymous function for evaluating the objective itself
-			self.fcn = matlabFunction(sym(expr.expr), 'vars', {fcn_vars});
+			% Generate the anonymous function for evaluating the objective itself.
+			% The dummy variable ensures the dimensions are correct
+			dummy_var = sym([otool.symvar_prefix 'dummy'], 'real');
+			self.fcn = matlabFunction(dummy_var + expr.expr, 'vars', {fcn_vars, dummy_var});
 
 			% Create a sparse representation of the jacobian of each term
 			% in this vectorized expression. i is in terms of the term's subexpressions,
@@ -60,13 +62,17 @@ classdef ExprEvaluator < handle
 
 				% Handle the variables one at a time. We'll expand var_map as necessary
 				% while running this loop.
-				for var_idxs = expr.idxs
-					% Handle a for loop peculiarity with cell arrays
-					var_idxs = var_idxs{1};
+				for iter = 1:numel(expr.vars)
+					var_idxs = expr.idxs{iter} + otool.var_start_idxs(find(otool.vars == expr.vars(iter))) - 1;
 
 					% Expand self.var_map if necessary
 					if numel(var_idxs) > size(self.var_map, 2)
 						self.var_map = repmat(self.var_map, 1, numel(var_idxs));
+					end
+
+					% Expand var_idxs if necessary
+					if size(self.var_map, 2) > numel(var_idxs)
+						var_idxs = var_idxs * ones(1, size(self.var_map, 2));
 					end
 
 					% Append to self.var_map
@@ -74,13 +80,14 @@ classdef ExprEvaluator < handle
 				end
 			else
 				self.var_map = bsxfun(@plus, otool.var_start_idxs, (otool.var_sizes > 1).' * (expr.idxs - 1));
+				self.var_map
 			end
 
 			% Compute and store the number of outputs for the user
 			self.num_outs = size(self.var_map, 2);
 
 			% Generate the jacobian function.
-			self.jacfcn = matlabFunction(jac_s(:), 'vars', {fcn_vars});
+			self.jacfcn = matlabFunction(dummy_var + jac_s(:), 'vars', {fcn_vars, dummy_var});
 
 			% Generate the indexing lists for the sparse representation of the jacobian
 			full_jac_i = bsxfun(@plus, jac_i(:) - 1, numel(expr.expr) * (1:size(self.var_map, 2)));
@@ -91,14 +98,14 @@ classdef ExprEvaluator < handle
 
 		% Evaluator; evaluates the function at the given point
 		function val = eval(self, x)
-			val = self.fcn(x(self.var_map));
+			val = self.fcn(x(self.var_map), zeros(1, size(self.var_map, 2)));
 			val = val(:);
 		end
 
 		% Jacobian evaluator; evaluates the jacobian of the function
 		% at the given point.
 		function jac = eval_jac(self, x)
-			jac_s = self.jacfcn(x(self.var_map));
+			jac_s = self.jacfcn(x(self.var_map), zeros(1, size(self.var_map, 2)));
 			jac = sparse(self.jac_i, self.jac_j, jac_s(:), max([0; self.jac_i]), numel(x));
 		end
 	end
