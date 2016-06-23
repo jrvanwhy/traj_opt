@@ -83,7 +83,7 @@ classdef ExprEvaluator < handle
 			self.jacfcn = matlabFunction(jac_s(:), 'vars', {fcn_vars});
 
 			% Generate the indexing lists for the sparse representation of the jacobian
-			full_jac_i = bsxfun(@plus, jac_i(:), numel(expr.expr) * (1:size(self.var_map, 2)));
+			full_jac_i = bsxfun(@plus, jac_i(:) - 1, numel(expr.expr) * (1:size(self.var_map, 2)));
 			self.jac_i = full_jac_i(:);
 			full_jac_j = self.var_map(jac_j, :);
 			self.jac_j = full_jac_j(:);

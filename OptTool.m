@@ -67,54 +67,6 @@ classdef OptTool < handle
 			self.x0 = [self.x0; initVal(:)];
 		end
 
-		% Handles Expr conversion and indexing for addCon()
-		%
-		% Parameters:
-		%     expr  The expression to be converted
-		%     idxs  Expression indices, or empty for the entire expression
-		function expr = convExpr(self, expr, idxs)
-			% Convert to Expr and index if necessary
-			if isa(expr, 'Expr')
-				% Check if we need to re-index the existing
-				% Expr object
-				if ~isempty(idxs)
-					expr.idxs = expr.idxs(idxs);
-				end
-			else
-				expr = Expr(expr, idxs);
-			end
-
-			% Do the Expr -> ExprEvaluator conversion
-			expr = ExprEvaluator(expr, self);
-		end
-
-		% Internal function for adding a constraint expression
-		% to self.cons while computing and updating indexing
-		%
-		% Parameters:
-		%     expr          The expression to add to cons
-		%     num_new_cons  The number of new constraints being added,
-		%                   for computing idxs
-		%
-		% Returns:
-		%     idxs  The list of indices for this new cons entry
-		function idxs = extendConsExprs(self, expr, num_new_cons)
-			% Compute starting and ending indices
-			start_idx = self.cons_size + 1;
-			end_idx = self.cons_size + expr.num_outs;
-
-			% Add expr to cons and update cons_size
-			self.cons(end+1) = expr;
-			self.cons_size = self.cons_size + expr.num_outs;
-
-			% Compute idxs, repeating it as necessary
-			idxs = (start_idx:end_idx).';
-
-			if numel(idxs) <= 1
-				idxs = idxs * ones(num_new_cons, 1);
-			end
-		end
-
 		% Add a constraint to the problem.
 		%
 		% Parameters:
@@ -123,31 +75,23 @@ classdef OptTool < handle
 		%     rexpr  The expression on the right side of the constraint
 		%     idxs   Indices within the expression groups (optional)
 		function addCon(self, lexpr, type, rexpr, idxs)
-			% If idxs wasn't provided set it to the empty array for
-			% convIdxs
+			% If idxs wasn't provided set it to the empty array.
+			% This is accepted as "the whole thing" by Expr
 			if nargin < 5
 				idxs = [];
 			end
 
-			% Convert the expressions into ExprEvaluator objects, indexing as necessary
-			lexpr = self.convExpr(lexpr, idxs);
-			rexpr = self.convExpr(rexpr, idxs);
+			% Diagnostic for the user
+			disp('Adding constraint')
 
-			% Compute the number of new constraints for extendConsExprs()
-			num_new_cons = max(lexpr.num_outs, rexpr.num_outs);
-
-			% Add them to the constraint expressions array, computing indices
-			lidxs = self.extendConsExprs(lexpr, num_new_cons);
-			ridxs = self.extendConsExprs(rexpr, num_new_cons);
-
-			% Update the constraint map
+			% Similarly to addObj(), we let ExprEvaluator do the work
 			switch type
 				case '<='
-					self.c_map = [self.c_map; [lidxs ridxs]];
+					self.c(end+1) = ExprEvaluator(Expr(lexpr - rexpr, idxs), self);
 				case '=='
-					self.ceq_map = [self.ceq_map; [lidxs ridxs]];
+					self.ceq(end+1) = ExprEvaluator(Expr(lexpr - rexpr, idxs), self);
 				case '>='
-					self.c_map = [self.ceq_map; [ridxs lidxs]];
+					self.c(end+1) = ExprEvaluator(Expr(rexpr - lexpr, idxs), self);
 			end
 		end
 
@@ -212,22 +156,16 @@ classdef OptTool < handle
 		% the interface required by fmincon
 		function [c,ceq,gc,gceq] = fminconCons(self, x)
 			% Compute the constraint values, and jacobians if necessary.
-			[cons,jcons] = self.evalFcns(self.cons, x, nargout >= 3);
-
-			% Do the constraint mappings (as necessary for the number of outputs)
-			c = cons(self.c_map(:, 1)) - cons(self.c_map(:, 2));
-
-			% Only compute the equality constraints if necessary
+			[c,jc] = self.evalFcns(self.c, x, nargout >= 3);
 			if nargout >= 2
-				ceq = cons(self.ceq_map(:, 1)) - cons(self.ceq_map(:, 2));
+				[ceq,jceq] = self.evalFcns(self.ceq, x, nargout >= 4);
 
-				% Compute gradients if necessary. The gradient of the constraints
-				% are the transposes of their jacobians
+				% Transpose gradients as necessary
 				if nargout >= 3
-					gc = (jcons(self.c_map(:, 1), :) - jcons(self.c_map(:, 2), :)).';
+					gc = jc.';
 
 					if nargout >= 4
-						gceq = (jcons(self.ceq_map(:, 1), :) - jcons(self.ceq_map(:, 2), :)).';
+						gceq = jceq.';
 					end
 				end
 			end
@@ -265,23 +203,10 @@ classdef OptTool < handle
 		x0@double = []
 
 		% List of objectives (which will be summed to evaluate the final
-		% objective)
+		% objective) and constraint functions (of each type)
 		objs@ExprEvaluator
-
-		% Constraint functions. These will then be mapped into equality and
-		% inequality constraints.
-		cons@ExprEvaluator
-
-		% Number of values in cons
-		cons_size@double = 0
-
-		% Inequality constraint index maps. The first column contains the indices of positive
-		% contributions to c and the second contains the indices of negative contributions to c
-		c_map@double = zeros(0, 2)
-
-		% Equality constraint index maps. The first column contains the indices of positive
-		% contributions to ceq and the second contains the indices of negative contributions to ceq
-		ceq_map@double = zeros(0, 2)
+		c@ExprEvaluator
+		ceq@ExprEvaluator
 
 		% Fmincon options structure
 		options = optimoptions('fmincon', ...
