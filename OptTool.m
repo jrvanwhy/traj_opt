@@ -88,6 +88,33 @@ classdef OptTool < handle
 			expr = ExprEvaluator(expr, self);
 		end
 
+		% Internal function for adding a constraint expression
+		% to self.cons while computing and updating indexing
+		%
+		% Parameters:
+		%     expr          The expression to add to cons
+		%     num_new_cons  The number of new constraints being added,
+		%                   for computing idxs
+		%
+		% Returns:
+		%     idxs  The list of indices for this new cons entry
+		function idxs = extendConsExprs(self, expr, num_new_cons)
+			% Compute starting and ending indices
+			start_idx = self.cons_size + 1;
+			end_idx = self.cons_size + expr.num_outs;
+
+			% Add expr to cons and update cons_size
+			self.cons(end+1) = expr;
+			self.cons_size = self.cons_size + expr.num_outs;
+
+			% Compute idxs, repeating it as necessary
+			idxs = (start_idx:end_idx).';
+
+			if numel(idxs) <= 1
+				idxs = idxs * ones(num_new_cons, 1);
+			end
+		end
+
 		% Add a constraint to the problem.
 		%
 		% Parameters:
@@ -106,9 +133,22 @@ classdef OptTool < handle
 			lexpr = self.convExpr(lexpr, idxs);
 			rexpr = self.convExpr(rexpr, idxs);
 
-			% Add them to the constraint expressions array
-			self.cons(end+1) = lexpr;
-			self.cons(end+1) = rexpr;
+			% Compute the number of new constraints for extendConsExprs()
+			num_new_cons = max(lexpr.num_outs, rexpr.num_outs);
+
+			% Add them to the constraint expressions array, computing indices
+			lidxs = self.extendConsExprs(lexpr, num_new_cons);
+			ridxs = self.extendConsExprs(rexpr, num_new_cons);
+
+			% Update the constraint map
+			switch type
+				case '<='
+					self.c_map = [self.c_map; [lidxs ridxs]];
+				case '=='
+					self.ceq_map = [self.ceq_map; [lidxs ridxs]];
+				case '>='
+					self.c_map = [self.ceq_map; [ridxs lidxs]];
+			end
 		end
 
 		% Adds an expression to the problem objective.
@@ -231,6 +271,9 @@ classdef OptTool < handle
 		% Constraint functions. These will then be mapped into equality and
 		% inequality constraints.
 		cons@ExprEvaluator
+
+		% Number of values in cons
+		cons_size@double = 0
 
 		% Inequality constraint index maps. The first column contains the indices of positive
 		% contributions to c and the second contains the indices of negative contributions to c

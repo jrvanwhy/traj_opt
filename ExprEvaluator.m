@@ -76,6 +76,9 @@ classdef ExprEvaluator < handle
 				self.var_map = bsxfun(@plus, otool.var_start_idxs, (otool.var_sizes > 1).' * (expr.idxs - 1));
 			end
 
+			% Compute and store the number of outputs for the user
+			self.num_outs = size(self.var_map, 2);
+
 			% Generate the jacobian function.
 			self.jacfcn = matlabFunction(jac_s(:), 'vars', {fcn_vars});
 
@@ -101,6 +104,9 @@ classdef ExprEvaluator < handle
 	end
 
 	properties
+		% The number of outputs for this vectorized expression
+		num_outs@double
+
 		% Map between the optimization problem's variables and the opttool variables
 		var_map@double
 
