@@ -67,14 +67,48 @@ classdef OptTool < handle
 			self.x0 = [self.x0; initVal(:)];
 		end
 
-		% Add a constraint to the problem. There are several ways to invoke this.
-		% The general idea is a series of expressions (symbolic group expressions,
-		% Expr objects, and function handles) separated by constraint type indicators,
-		% plus optionally separate indexing values (as the last argument).
+		% Handles Expr conversion and indexing for addCon()
 		%
-		% Idea: addCon(self, expr1, '<=', expr2, '==', expr3, idxs)
-		function addCon(self, varargin)
-			% TODO: This
+		% Parameters:
+		%     expr  The expression to be converted
+		%     idxs  Expression indices, or empty for the entire expression
+		function expr = convExpr(self, expr, idxs)
+			% Convert to Expr and index if necessary
+			if isa(expr, 'Expr')
+				% Check if we need to re-index the existing
+				% Expr object
+				if ~isempty(idxs)
+					expr.idxs = expr.idxs(idxs);
+				end
+			else
+				expr = Expr(expr, idxs);
+			end
+
+			% Do the Expr -> ExprEvaluator conversion
+			expr = ExprEvaluator(expr, self);
+		end
+
+		% Add a constraint to the problem.
+		%
+		% Parameters:
+		%     lexpr  The expression on the left side of the constraint
+		%     type   The constraint type ('<=', '==', '>=')
+		%     rexpr  The expression on the right side of the constraint
+		%     idxs   Indices within the expression groups (optional)
+		function addCon(self, lexpr, type, rexpr, idxs)
+			% If idxs wasn't provided set it to the empty array for
+			% convIdxs
+			if nargin < 5
+				idxs = [];
+			end
+
+			% Convert the expressions into ExprEvaluator objects, indexing as necessary
+			lexpr = self.convExpr(lexpr, idxs);
+			rexpr = self.convExpr(rexpr, idxs);
+
+			% Add them to the constraint expressions array
+			self.cons(end+1) = lexpr;
+			self.cons(end+1) = rexpr;
 		end
 
 		% Adds an expression to the problem objective.
@@ -140,18 +174,20 @@ classdef OptTool < handle
 			% Compute the constraint values, and jacobians if necessary.
 			[cons,jcons] = self.evalFcns(self.cons, x, nargout >= 3);
 
-			% Do the constraint mapping (as necessary for the number of outputs)
-			c = self.c_map * cons;
-			if nargout >= 2
-				ceq = self.ceq_map * cons;
+			% Do the constraint mappings (as necessary for the number of outputs)
+			c = cons(self.c_map(:, 1)) - cons(self.c_map(:, 2));
 
+			% Only compute the equality constraints if necessary
+			if nargout >= 2
+				ceq = cons(self.ceq_map(:, 1)) - cons(self.ceq_map(:, 2));
+
+				% Compute gradients if necessary. The gradient of the constraints
+				% are the transposes of their jacobians
 				if nargout >= 3
-					% The "gradient" as defined by fmincon is the transpose
-					% of the jacobian
-					gc = (self.c_map * jcons).';
+					gc = (jcons(self.c_map(:, 1), :) - jcons(self.c_map(:, 2), :)).';
 
 					if nargout >= 4
-						gceq = (self.ceq_map * jcons).';
+						gceq = (jcons(self.ceq_map(:, 1), :) - jcons(self.ceq_map(:, 2), :)).';
 					end
 				end
 			end
@@ -196,13 +232,13 @@ classdef OptTool < handle
 		% inequality constraints.
 		cons@ExprEvaluator
 
-		% Inequality constraint index map. This is a sparse matrix that multiplies
-		% the output of cons to produce c
-		c_map = sparse([])
+		% Inequality constraint index maps. The first column contains the indices of positive
+		% contributions to c and the second contains the indices of negative contributions to c
+		c_map@double = zeros(0, 2)
 
-		% Equality constraint index maps. This is a sparse matrix that multiplies the output
-		% of cons to produce ceq
-		ceq_map = sparse([])
+		% Equality constraint index maps. The first column contains the indices of positive
+		% contributions to ceq and the second contains the indices of negative contributions to ceq
+		ceq_map@double = zeros(0, 2)
 
 		% Fmincon options structure
 		options = optimoptions('fmincon', ...

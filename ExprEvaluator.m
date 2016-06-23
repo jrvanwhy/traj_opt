@@ -41,7 +41,7 @@ classdef ExprEvaluator < handle
 			end
 
 			% Generate the anonymous function for evaluating the objective itself
-			self.fcn = matlabFunction(expr.expr, 'vars', {fcn_vars});
+			self.fcn = matlabFunction(sym(expr.expr), 'vars', {fcn_vars});
 
 			% Create a sparse representation of the jacobian of each term
 			% in this vectorized expression. i is in terms of the term's subexpressions,
@@ -88,14 +88,15 @@ classdef ExprEvaluator < handle
 
 		% Evaluator; evaluates the function at the given point
 		function val = eval(self, x)
-			val = self.fcn(x(self.var_map)).';
+			val = self.fcn(x(self.var_map));
+			val = val(:);
 		end
 
 		% Jacobian evaluator; evaluates the jacobian of the function
 		% at the given point.
 		function jac = eval_jac(self, x)
 			jac_s = self.jacfcn(x(self.var_map));
-			jac = sparse(self.jac_i, self.jac_j, jac_s(:), max(self.jac_i), numel(x));
+			jac = sparse(self.jac_i, self.jac_j, jac_s(:), max([0; self.jac_i]), numel(x));
 		end
 	end
 
